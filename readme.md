@@ -9,9 +9,10 @@ from hyperparameters import GridSearch, search
 @dataclass
 class Hyperparams(GridSearch):
 
-    epochs        :int = 3 
-    batch_size    :int = search([16, 32])
-    learning_rate :int = search([1e-5, 2e-5])
+    epochs        :int   = 3 
+    batch_size    :int   = search([16, 32])
+    learning_rate :float = search([1e-5, 2e-5])
+
 ```
 
 This inherits a bunch of useful attributes, and constructs an iterator. 
@@ -33,10 +34,10 @@ Dataclasses don't require Java-style repetitive constructors. To modify your hyp
 ```python
 Hyperparams(epochs=search([1,2,3]))
 
-#       Search 3 dimensions, total 12 combinations
-#       epochs: 	    [1, 2, 3]
-# 	    batch_size: 	[16, 32]
-# 	    learning_rate: 	[1e-05, 2e-05]
+#    Search 3 dimensions, total 12 combinations
+#    epochs:            [1, 2, 3]
+#    batch_size:        [16, 32]
+#    learning_rate:     [1e-05, 2e-05]
 ```
 
 #### Installation

@@ -61,7 +61,29 @@ params.run_all(num_proc = os.cpu_count() - 2)
 >
 > In the future, I may do a refactor that shares the data more efficiently; but this is not trivial in Python.
 
+Also note that `Experiment` objects have access to concurrency-related fields initialised by superparams. These are:
+
+- `rank`: the process id of this experiment setting, i.e. `rank in {0,1,2,3}` if `n_proc = 4`. 
+- `n_proc`: parameter passed to the `n_proc` field.
+
 #### Installation
 A single file for now. Just copy it over. 
 
+
+#### TODO
+
+- [ ] cli fn to run `experiment exp.RQ1`. 
+- [ ] smarter experiment lookup: users may want to have a single file for all their experiments, or spread it into different folders. 
+  - `experiment RQ1` runs all experiments in the file `RQ1.py`
+  - `experiment index.RQ1` runs the experiment `RQ1` in the file `index.py`, 
+    or the file `RQ1.py` in the folder `experiments/index`. 
+
+- `dataclasses` improvements 
+- get rid of this annoying `@dataclass` annotation
+- provide a `value` method to replace `field` pattern; do we assume immutability? 
+- check compatitibility with `python=3.10, python=3.11`. 
+
+- `testing`
+- [ ] actual functional correctness tests 
+- [ ] 
 

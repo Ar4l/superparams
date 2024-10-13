@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/superparams"]
+
+[project]
+name = "superparams"
+version = "0.0.1"
+authors = [
+    { name="Aral", email="me@aral.cc" }
+]
+description = "Create hyperparam combinations with dataclasses"
+readme = "readme.md"
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Ar4l/param-search"
+Issues = "https://github.com/Ar4l/param-search/issues"

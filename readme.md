@@ -1,6 +1,8 @@
 ## superparams
 a Pythonic approach to Hyperparameter Search. Using built-in `dataclasses`, as they are flexible, typed, easily-serialisable, and are a `dict` in the places you need them. 
 
+> I like to think of it as the repetitive back-logic for flexible, fast searching of any search space. 
+
 #### Usage 
 ```python 
 from dataclasses import dataclass
@@ -73,6 +75,12 @@ A single file for now. Just copy it over.
 #### TODO
 
 - [ ] cli fn to run `experiment exp.RQ1`. 
+- [ ] Encapsulate current `__main__` into a class, so the user can just add 
+      ```python
+      # some/path/to/custom/experiments/__main__.py
+      from superparams import entrypoint
+      entrypoint()
+      ```
 - [ ] smarter experiment lookup: users may want to have a single file for all their experiments, or spread it into different folders. 
   - `experiment RQ1` runs all experiments in the file `RQ1.py`
   - `experiment index.RQ1` runs the experiment `RQ1` in the file `index.py`, 
@@ -85,5 +93,4 @@ A single file for now. Just copy it over.
 
 - `testing`
 - [ ] actual functional correctness tests 
-- [ ] 
 

@@ -1,9 +1,19 @@
 ## superparams
+<!--
 a Pythonic approach to Hyperparameter Search. Using built-in `dataclasses`, as they are flexible, typed, easily-serialisable, and are a `dict` in the places you need them. 
 
 > I like to think of it as the repetitive back-logic for flexible, fast searching of any search space. 
 
+#### Key Features 
+--> 
+
+- One Python file for your entire experiment, flexible and easily versionable.
+- No boilerplate like parsing a text file with configuration variables, multiprocessing code, nor logging/saving results. 
+- Easily re-run failed experiment settings. 
+
 #### Usage 
+Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. 
+
 ```python 
 from dataclasses import dataclass
 from hyperparameters import GridSearch, search
@@ -100,6 +110,7 @@ Any decent package should list viable alternatives. Here are some that I conside
 - [wandb sweeps](https://docs.wandb.ai/guides/sweeps/) is best used for Bayesian hyperparameter search to optimise a DL model; but requires specifying settings in JSON files.
 - [ray tune](https://docs.ray.io/en/latest/tune/index.html) enables SOTA algorithms like PBT (similar to genetic optimisation) and HyperBand/ASHA (large population with early stopping), and allows for relatively unsupervised optimisation by specifying a search space *and objective* in Python. It is also compatible with [Keras Hyperopt](https://github.com/maxpumperla/hyperas) and [Pytorch Optuna](https://optuna.org/).
 - [orion](https://orion.readthedocs.io/en/stable/index.html) is similar to ray tune, but more or less a wrapper around an argument parser you need to set up yourself (so you have to specify everything in plain-text cli commands).
+- [hydra](https://hydra.cc/) is probably most-similar in features to `superparams`, but relies on `yaml` for specification and doesn't collate results nicely into a `pandas` dataframe. 
 
 I think of superparams as more open-ended than ray-tune: there may not be a direct objective to optimise as the right objective is not yet established. And, by allowing everything to be specified in a single Python dataclass, you maintain flexibility by not assuming that the entire optimisation is a black-box. To me, it is valuable to be able to specify all parameters *and* logic in a single place, completely in lsp-understandable python; which also means everything can be version-tracked.
 

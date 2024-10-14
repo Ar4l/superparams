@@ -94,3 +94,12 @@ A single file for now. Just copy it over.
 - `testing`
 - [ ] actual functional correctness tests 
 
+#### Alternatives
+Any decent package should list viable alternatives. Here are some that I considered, but ended up building this package instead. 
+
+- [wandb sweeps](https://docs.wandb.ai/guides/sweeps/) is best used for Bayesian hyperparameter search to optimise a DL model; but requires specifying settings in JSON files.
+- [ray tune](https://docs.ray.io/en/latest/tune/index.html) enables SOTA algorithms like PBT (similar to genetic optimisation) and HyperBand/ASHA (large population with early stopping), and allows for relatively unsupervised optimisation by specifying a search space *and objective* in Python. It is also compatible with [Keras Hyperopt](https://github.com/maxpumperla/hyperas) and [Pytorch Optuna](https://optuna.org/).
+- [orion](https://orion.readthedocs.io/en/stable/index.html) is similar to ray tune, but more or less a wrapper around an argument parser you need to set up yourself (so you have to specify everything in plain-text cli commands).
+
+I think of superparams as more open-ended than ray-tune: there may not be a direct objective to optimise as the right objective is not yet established. And, by allowing everything to be specified in a single Python dataclass, you maintain flexibility by not assuming that the entire optimisation is a black-box. To me, it is valuable to be able to specify all parameters *and* logic in a single place, completely in lsp-understandable python; which also means everything can be version-tracked.
+

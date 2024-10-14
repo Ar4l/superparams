@@ -14,7 +14,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "filelock>=3.16.1",
+    "multiprocess>=0.70.17",
+    "pandas>=2.2.3",
+]
 
 [project.urls]
 Homepage = "https://github.com/Ar4l/superparams"
@@ -22,6 +26,11 @@ Issues = "https://github.com/Ar4l/superparams/issues"
 
 [project.scripts]
 experiment = "superparams:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+]
 
 [build-system]
 requires = ["hatchling"]

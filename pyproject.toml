@@ -1,6 +1,6 @@
 [project]
 name = "superparams"
-version = "0.0.1"
+version = "0.0.2"
 
 authors = [
     { name="Aral", email="me@aral.cc" }
@@ -21,5 +21,9 @@ Homepage = "https://github.com/Ar4l/superparams"
 Issues = "https://github.com/Ar4l/superparams/issues"
 
 [project.scripts]
-experiment = "cli.entrypoint:main"
+experiment = "superparams:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 

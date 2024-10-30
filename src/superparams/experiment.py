@@ -12,51 +12,54 @@ PROGRESS_DIR = '.' # os.path.join(os.path.dirname(os.path.abspath(__file__)), 'p
 
 @dataclass 
 class Dimension: 
-    ''' A dimension consists of a unidirectional series of points 
-        i.e. a list, for now – it can also be a range.
-    '''
-    points : List[Any | Dimension]
+	''' A dimension consists of a unidirectional series of points 
+		i.e. a list, for now – it can also be a range.
+	'''
+	points : List[Any | Dimension]
 
-    def __iter__(self) -> Iterator[Any]:
-        ''' iterate over this dimension, flattening sub-dimensions '''
+	def __iter__(self) -> Iterator[Any]:
+		''' iterate over this dimension, flattening sub-dimensions '''
 
-        for point in self.points:
-            if isinstance(point, Dimension): yield from iter(point)
-            elif isinstance(point, Surface): yield from iter(point)
-            else: yield point
+		for point in self.points:
+			if isinstance(point, Dimension): yield from iter(point)
+			elif isinstance(point, Surface): yield from iter(point)
+			else: yield point
 
-    def __len__(self) -> int:
-        ''' return size of all dimensions '''
-        n_points = 0 
-        for point in self.points: 
-            if isinstance(point, Dimension): n_points += len(point)
-            elif isinstance(point, Surface): n_points += len(point)
-            else: n_points += 1
-        return n_points 
+	def __len__(self) -> int:
+		''' return size of all dimensions '''
+		n_points = 0 
+		for point in self.points: 
+			if isinstance(point, Dimension): n_points += len(point)
+			elif isinstance(point, Surface): n_points += len(point)
+			else: n_points += 1
+		return n_points 
 
-    def __str__(self) -> str: 
-        ''' self.__logs points as list, or recurse into subdims '''
-        nonsurface = ', '.join(
-            f'*{point}' if isinstance(point, Dimension) else str(point)
-            for point in filter(lambda x: not isinstance(x, Surface), self.points)) 
-        surface = ','.join(str(point) for point in filter(lambda x: isinstance(x, Surface), self.points))
-        
-        if len(nonsurface) > 0 and len(surface) > 0:
-            return nonsurface + ', ' + surface 
-        elif len(nonsurface) > 0: 
-            return nonsurface 
-        else: 
-            return surface 
+	def __str__(self) -> str: 
+		''' self.__logs points as list, or recurse into subdims '''
+		nonsurface = ', '.join(
+			f'*{point}' if isinstance(point, Dimension) else str(point)
+			for point in filter(lambda x: not isinstance(x, Surface), self.points)) 
+		surface = ','.join(str(point) for point in filter(lambda x: isinstance(x, Surface), self.points))
+		
+		if len(nonsurface) > 0 and len(surface) > 0:
+			return nonsurface + ', ' + surface 
+		elif len(nonsurface) > 0: 
+			return nonsurface 
+		else: 
+			return surface 
 
-def search(*points) -> Field: 
-    ''' to be used within a Surface definition '''
-    return field(default_factory=lambda: Dimension(points))
+from typing import TypeVar
+T = TypeVar('T')
+
+def search(*points: T) -> T: 
+	''' to be used within a Surface definition '''
+	return field(default_factory=lambda: Dimension(points))
 
 @dataclass 
 class Surface: 
-    ''' A surface consists of at least two dimensions 
-        i.e. multiple lists, and optional static points 
-    '''
+	''' A surface consists of at least two dimensions 
+		i.e. multiple lists, and optional static points 
+	'''
 
 # TODO: apparently a process pool cannot spawn more process pools; 
 # though huggingface is definitely using all 128 cores w/o asking me sometimes...
@@ -73,413 +76,418 @@ class Surface:
 
 @dataclass 
 class Experiment(Surface): 
-    ''' Grid search a dataclass. Provide searchable values as follows: 
-        ```python
-        @dataclass
-        class Params(GridSearch):
-            a :int = search(1,2,3)
-            b :str = 'b'
-        
-        for param in Params(): ...
-        ```
-    '''
-    __name       :str = 'Experiment'
-    __nested    :bool = field(default=False, kw_only=True) # TODO: do we still need this field?
-    __start_time: str = field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
-
-    @property 
-    def name(self) -> str:
-        ''' Override this method to give a descriptive name to your experiment.
-            You can use properties and variables in the name to identify it. 
-        '''
-        return self.__name
-    
-    @name.setter 
-    def name(self, name: str) -> None: 
-        self.__name = name 
-
-    @property 
-    def proc_id(self) -> int:
-        ''' Return the processor id in case of multithreading (between 1 - num_proc)
-            returns 0 if no multiprocessing is enabled (main thread execution)
-        '''
-        return 0 if len(multiprocess.current_process()._identity) == 0 \
-            else multiprocess.current_process()._identity[0]
-    
-    @property 
-    def num_proc(self) -> int:
-        ''' Return the variable passed to num_proc flag, 1 by default (no multiprocessing) '''
-        return self.__num_proc 
-
-    def as_dict(self) -> dict[str, Any]:
-        return {k:v for k,v in self.__dict__.items() if not k.startswith('_Experiment__')}
-
-    def run(self) -> dict:
-        ''' Run this experiment using the values defined in its class.
-            Return a dict of results for it to be stored with the experiment name 
-        '''
-        raise NotImplementedError('You should override this method!')
-
-    def __prompt_resume(self, resume, no_resume, clean):
-        ''' If existing progress files are found and the --no-resume flag is not set,
-            prompt the user whether they want to resume from last time
-        '''
-        progress_files_dir = os.path.dirname(self.progress_file)
-        os.makedirs(progress_files_dir, exist_ok=True)
-        progress_files = sorted(
-            filter(lambda filename: '.progress' in filename and '.lock' not in filename, 
-            os.listdir(progress_files_dir))
-        )
-
-        if clean:
-            self.__log(f'Cleaning {len(progress_files)} progress files...')
-            for old_progress_file in os.listdir(progress_files_dir):
-                path = os.path.join(progress_files_dir, old_progress_file)
-                if os.path.isfile(path): os.remove(path)
-                else: shutil.rmtree(path)
-            return []
-
-        # if the user has not put in the no_resume flag, we want to prompt them to be sure
-        if (not resume and no_resume) and len(progress_files) > 0: 
-            prompt = input('Found existing progress, do you want to resume? [Y/n] ')
-            resume = prompt.strip().lower() == 'y' or prompt.strip() == ''
-
-        # if resume, the __start_time attribute is set to the last run's
-        if resume: 
-            last_progress_file = progress_files[-1]
-            self.__start_time = os.path.basename(last_progress_file).split('.')[0]
-            self.__log(f'\033[1;93mresuming from {last_progress_file}\033[0m')
-
-        finished_runs = []
-        if resume: 
-            finished_runs = [setting for setting in self.__get_progress() if not 'in progress' in setting]
-        else: 
-            # touch a new progress file
-            with open(self.progress_file, 'a'): pass 
-
-            # NOTE: this does not work if the user has added new runs to the experiment, 
-            # but there is also no lazy way of tracking this, by design.
-            # self.__log(f'\033[1mResuming... {self.__start_time}, {len(self) - len(finished_runs)} remaining\033[0m')
-
-        return finished_runs
-
-    def __set_up_logging(self):
-        ''' Set up logging. I'm using tee to ensure we capture system stuff too
-            taken from https://stackoverflow.com/questions/616645/how-to-duplicate-sys-stdout-to-a-log-file
-        '''
-        tee = subprocess.Popen(['tee', '-a', self.log_file], stdin=subprocess.PIPE)
-        # Cause tee's stdin to get a copy of our stdin/stdout (as well as that
-        # of any child processes we spawn)
-        os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
-        os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
-
-        self.__log(f'\033[90mPROGRESS FILE: \t{self.progress_file}\033[0m', flush=True)
-        self.__log(f'\033[90mLOG FILE     : \t{self.log_file}\033[0m', flush=True)
-
-    def __store_result(self, setting_name: str, result: dict | None):
-        ''' Store results if they were returned, thread safe. '''
-
-        if isinstance(result, dict):
-
-            def flatten(dictionary, keys=tuple()):
-                ''' if the dictionary is nested, for a proper multiindex we need to convert
-                    the nesting to a flat dictionary, where the keys are tuples
-                    with setting_name as the first entry in the tuple. 
-                '''
-                for k, v in dictionary.items():
-                    if isinstance(v, dict): yield from flatten(v, keys + (k,))
-                    else: yield (keys if len(keys) > 1 else keys[0], dictionary)
-            
-            # if the user has defined a tuple as the keys, then assume they have flattened it
-            result = result if isinstance(list(result.keys())[0], tuple) else dict(flatten({setting_name: result})) 
-
-            result_lock = FileLock(self.result_file + '.lock')
-            with result_lock:
-                try: results = pd.read_parquet(self.result_file).T
-                except: results : pd.DataFrame = pd.DataFrame({})
-
-                results = pd.concat([
-                    results,
-                    pd.DataFrame(result)
-                ], axis='columns')
-                results.T.to_parquet(self.result_file)
-
-                self.__log(results.T[::-1]) # reverse to show most recent one first
-            return results
-        else: 
-            self.__log(f'\033[1;31mWARNING: no results returned!\033[0m')
-
-    def __store_progress(self, setting_name):
-        ''' Store progress, thread safe. '''
-
-        progress_lock = FileLock(self.progress_file + '.lock')
-        with progress_lock: 
-            with open(self.progress_file, 'a') as progress_file:
-                self.__log(setting_name, file=progress_file)
-
-    def __get_progress(self) -> list:
-        ''' Get progress so far, thread safe. '''
-        progress_lock = FileLock(self.progress_file + '.lock')
-        with progress_lock: 
-            with open(self.progress_file, 'r') as progress_file: 
-                progress = [line.strip() for line in progress_file.readlines()]
-        return progress
-
-    def __store_exception(self, setting_name, exception, debug):
-
-        # oh boy this is an interpreted language, let's use it.
-        if debug: 
-            extype, value, tb = sys.exc_info()
-            try: 
-                last_frame = lambda tb=tb: last_frame(tb.tb_next) if tb.tb_next else tb
-                frame = last_frame().tb_frame
-                ns = dict(frame.f_globals)
-                ns.update(frame.f_locals)
-                code.interact(local=ns)
-                return
-            except: 
-                self.__log('\033[1;31mcould not activate `code` debugger, trying `pdb`\033[0m')
-                try: 
-                    import pdb; pdb.post_mortem(tb)
-                except: 
-                    self.__log('\033[1;31mcould also not activate `pdb` debugger\033[0m')
-                pass
-
-        exc_time = datetime.datetime.now()
-
-        exception_lock = FileLock(self.exc_file + '.lock')
-        with exception_lock: 
-
-            with open(self.exc_file, 'a') as exc_file:
-                self.__log(f'{setting_name} {exc_time.isoformat()}', file=exc_file, flush=True)
-
-            with open(self.exc_file, 'r') as exc_file:
-                exceptions = {setting: datetime.datetime.fromisoformat(time.strip()) for setting, time in \
-                              map(lambda line: line.split(maxsplit=1), exc_file.readlines())}
-                
-        exception_log_lock = FileLock(self.exc_log_file + '.lock')
-        with exception_log_lock:
-            with open(self.exc_log_file, 'a') as exc_log_file:
-                self.__log(f'\n\n{setting_name} {exc_time.isoformat()}', file=exc_log_file)
-                self.__log(traceback.format_exc(), file=exc_log_file)
-
-
-        # TODO: it would be really cool if we could fork the process, 
-        # keep running the rest of the experiments, and set a pdb post-mortem 
-        # See Accepted Answer on SO: https://stackoverflow.com/questions/242485/starting-python-debugger-automatically-on-error
-
-        exception_times = list(exceptions.values())
-        if len(exceptions) >= 3 and (exception_times[-1] - exception_times[(max(len(exception_times) - 4, 0))]).seconds < 3*60:
-            self.__log(f'\033[1;31mThree exceptions in three minutes, quitting\033[0m')
-            raise ChildProcessError('3 Exceptions in 3 minutes, quitting') from exception
-
-    def __run_setting(self, index:int, setting:Experiment, finished_runs: list, debug=False, rerun=False):
-        ''' Run setting on one process, with error handling and progress tracking
-            # TODO: logging to multiple files to not clutter the one to bits 
-        '''
-        setting.__num_proc = self.__num_proc
-        index += 1 # for natural language indexing
-        # self.__log(f'{index:04d}: {multiprocess.current_process()._identity[0]}')
-
-        try: 
-            if not rerun and setting.name in finished_runs: 
-                self.__log(f'Skipping {index}: \033[1m{setting.name}\033[0m')
-                return
-
-            # run setting. if it fails, just continue.
-            self.__log(f'\nRunning setting {index}: \n{setting}')
-            result = setting.resume() if hasattr(setting, 'resume') else setting.run()
-            self.__log(f'\nDone with {index}: \033[1m{setting.name}\033[0m\n')
-
-            self.__store_result(setting.name, result)
-            self.__store_progress(setting.name)
-            return
-
-        except Exception as e: # let the user know we're skipping this setting
-            # it can happen that the experiment fails during name initialisation
-            # let's accomomdate to the user and still continue running the rest
-            try: name = setting.name 
-            except: name = f'experiment setting with index {index}'
-
-            self.__log(f' \033[1;31m!!!\033[0m\t\033[1m{name}\033[31m failed \033[0m\n{traceback.format_exc()}')
-            self.__store_exception(setting.name, e, debug) # can raise Exception: too many failures
-
-    def run_all(self, resume=False, no_resume=False, num_proc=1, debug=False, clean=False, rerun=False):
-        ''' Run all settings in this Experiment, saving progress to .progress file 
-            and logging to .log file 
-            Optionally, specify whether to resume from last time
-        '''
-        # TODO: Start a tmux session and log to different panes. 
-        # Start pdb on a new pane if an exception is raised. 
-
-        # TODO: Allow user to modify the Experiment while it is still running, 
-        # and launch a separate instance of the same experiment. 
-        # This requires tracking in-progress runs
-
-        finished_runs = self.__prompt_resume(resume, no_resume, clean)
-
-        all_names = [setting.name for setting in copy.deepcopy(self)]
-        duplicates = set([name for name in all_names if all_names.count(name) > 1])
-        assert len(duplicates) == 0, f'All settings must have unique names! Duplicates: \n{duplicates}'
-
-        self.__set_up_logging()
-        if not len(self) == 1: 
-            self.__log(f'Running experiment with following settings: \n{self}', flush=True)
-
-        self.__num_proc = num_proc 
-        if num_proc == 1:
-            # run all settings in this experiment (i.e. perform grid search)
-            for index, setting in enumerate(self):
-                self.__run_setting(index, setting, finished_runs, debug, rerun)
-        else: 
-            with multiprocess.Pool(num_proc) as pool:
-                iterator = map(lambda tup: (*tup, finished_runs, debug, rerun), enumerate(self))
-                pool.starmap(self.__run_setting, iterator, chunksize=1)
-
-        if hasattr(self, 'format_results'): # custom results display defined by user
-            result_lock = FileLock(self.result_file + '.lock')
-            with result_lock:
-                try: results = pd.read_parquet(self.result_file).T
-                except: 
-                    self.__log(f'\033[1;31mWARNING: no results found!\033[0m') 
-                    return
-            
-            results :pd.DataFrame = self.format_results(results)
-            if results is not None: 
-                results.to_parquet(self.result_file.replace('.parquet', '_formatted.parquet'))
-
-    def __post_init__(self): 
-        ''' 1. allows you to declare fields inline when instantiating an Experiment(), 
-               wrapping the mutables in a Field (field(default_factory=lambda: mutable))
-            2. sets sub-Surfaces as nested; to indicate they should be searched as part
-               of the parent (TODO: can't remember whether this was actually necessary)
-            3. tries to format f-strings that appear in the setting's attributes, if 
-               they are formattable. Convenient for defining setting-dependent strings.
-        '''
-
-        # set name of the main experiment object to the class the user defined
-        self.__name = self.__class__.__name__
-
-        uninitialised_fields = {name: _field for \
-            name, _field in self.__dict__.items() if isinstance(_field, Field)
-        }
-        for name, _field in uninitialised_fields.items():
-            setattr(self, name, _field.default_factory())
-
-        # self.__log(f'\nPOST INIT for {self.__class__.__name__}')
-        # self.__log('\n'.join(f'{k}: {type(v)}' for k,v, in self.__items))
-
-        ''' 2. set fields as nested, to not track progress in nested classes '''
-        for k, v in self.__items:
-            if isinstance(v, Surface):
-                v.__nested = True 
-
-        ''' 3. format attribute strings '''
-        # per string field, collect the names necessary to format the string
-        string_fields = {name: (string, [name for _, name, _, _ in Formatter().parse(string) if name is not None]) \
-                         for name, string in self.__dict__.items() if isinstance(string, str)}
-
-        for name, (string, names) in string_fields.items():
-            try:
-                kwargs = {}
-                for v_name in names: 
-                    if not isinstance(getattr(self, v_name), Dimension): 
-                        kwargs[v_name] = getattr(self, v_name)
-                setattr(self, name, string.format(**kwargs))
-            except: pass
-
-    def __log(self, message, flush=True, file=None) -> None:
-        ''' because I can't be bothered to write if elses everywhere '''
-        if os.environ.get('LOCAL_RANK', 0) == 0: 
-            print(message, flush=flush, file=file)
-
-    def __str__(self) -> str: 
-
-        string = f'\n\033[1;93m{len(self):3} {self.name}\033[0m'
-
-        max_k_len = max(map(len, self.__dict__.keys()))
-        for k,v in self.__items: 
-            # in case of a multiline value (from a Surface), we pad the block
-            v_string = '\n    '.join(str(v).splitlines()) 
-
-            # dimensions in purple to make it clear to the user 
-            if isinstance(v, Dimension) or isinstance(v, Surface):
-                string += '\n \033[1;95m{:2} {:{}s}: [\033[0m {} \033[95;1m]\033[0m'.format(
-                    len(v), k, max_k_len, v_string
-                )
-            else:
-                string += '\n {:2} \033[1m{:{}s}\033[0m: {}'.format(
-                    1, k, max_k_len, v_string
-                )
-
-        return string + '\n'
-
-    def __len__(self) -> int:
-        return reduce(
-                lambda a,b: a*b, 
-                map(
-                    len,
-                    (d for d in self.__dimensions.values()) 
-            ), 1)
-
-    def __iter__(self) -> Iterator[Surface]:
-
-        keys = self.__dimensions.keys()
-        for i, instance in enumerate(product(*[v for v in self.__dimensions.values()])):
-            point = self.__class__(**self.__static_points, **dict(zip(keys, instance)))
-            
-            point.__name = point.clean_class_name + f'-{i}'
-            yield point
-
-    @property 
-    def __items(self):
-        ''' returns all items in this class, except dunders '''
-        return {k:v for k,v in self.__dict__.items() if not k.startswith('_Experiment__')}.items()
-
-    @property 
-    def __static_points(self) -> Dict[str, Any] :
-        ''' dictionary of { var_one: Any, var_two: Any, ... } '''
-        return {k:v for k,v in self.__items if not isinstance(v, Dimension) and not isinstance(v,Surface)}
-
-    @property 
-    def __dimensions(self) -> Dict[str, Dimension]:
-        ''' dictionary of { var_one: Dimension, var_two: Dimension, ... } '''
-        return {k:v for k,v in self.__items if isinstance(v,Dimension) or isinstance(v,Surface)}
-
-    @property 
-    def clean_class_name(self) -> str:
-        ''' clean class name (without experiment index) '''
-        classname = self.__class__.__name__
-        return classname.split('-')[0] if '-' in classname else classname
-
-
-    @property
-    def progress_file(self) -> str:
-        ''' where to store experiment index (to continue at a later time) '''
-        return os.path.join(
-            PROGRESS_DIR, 
-            self.__module__.split('.')[-1],
-            self.clean_class_name,
-            f'{self.__start_time}.progress'
-        )
-
-    @property 
-    def result_file(self) -> str : 
-        return self.progress_file.rsplit('.')[0] + '.parquet'
-
-    @property 
-    def log_file(self) -> str:
-        ''' log everything! '''
-        return self.progress_file.rsplit('.')[0] + '.log'
-    
-    @property 
-    def exc_file(self) -> str: 
-        ''' exception file '''
-        return self.progress_file.rsplit('.')[0] + '.exceptions'
-
-    @property 
-    def exc_log_file(self) -> str: 
-        ''' exception logs for self.__loging the errors '''
-        return self.exc_file.rsplit('.')[0] + '.exceptions.log'
+	''' Grid search a dataclass. Provide searchable values as follows: 
+		```python
+		@dataclass
+		class Params(GridSearch):
+			a :int = search(1,2,3)
+			b :str = 'b'
+		
+		for param in Params(): ...
+		```
+	'''
+	__name		 :str = 'Experiment'
+	__nested	:bool = field(default=False, kw_only=True) # TODO: do we still need this field?
+	__start_time: str = field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
+
+	@property 
+	def name(self) -> str:
+		''' Override this method to give a descriptive name to your experiment.
+			You can use properties and variables in the name to identify it. 
+		'''
+		return self.__name
+	
+	@name.setter 
+	def name(self, name: str) -> None: 
+		self.__name = name 
+
+	@property 
+	def proc_id(self) -> int:
+		''' Return the processor id in case of multithreading (between 1 - num_proc)
+			returns 0 if no multiprocessing is enabled (main thread execution)
+		'''
+		return 0 if len(multiprocess.current_process()._identity) == 0 \
+			else multiprocess.current_process()._identity[0]
+	
+	@property 
+	def num_proc(self) -> int:
+		''' Return the variable passed to num_proc flag, 1 by default (no multiprocessing) '''
+		return self.__num_proc 
+
+	def as_dict(self) -> dict[str, Any]:
+		''' return a dictionary representation of this Experiment object
+			TODO: do we also convert sub-Experiments to dictionaries? '''
+		return {k:v for k,v in self.__dict__.items() if not k.startswith('_Experiment__')}
+
+	def run(self) -> dict:
+		''' Run this experiment using the values defined in its class.
+			Return a dict of results for it to be stored with the experiment name 
+		'''
+		raise NotImplementedError('You should override this method!')
+
+	def __prompt_resume(self, resume, no_resume, clean):
+		''' If existing progress files are found and the --no-resume flag is not set,
+			prompt the user whether they want to resume from last time
+		'''
+		progress_files_dir = os.path.dirname(self.progress_file)
+		os.makedirs(progress_files_dir, exist_ok=True)
+		progress_files = sorted(
+			filter(lambda filename: '.progress' in filename and '.lock' not in filename, 
+			os.listdir(progress_files_dir))
+		)
+
+		if clean:
+			self.__log(f'Cleaning {len(progress_files)} progress files...')
+			for old_progress_file in os.listdir(progress_files_dir):
+				path = os.path.join(progress_files_dir, old_progress_file)
+				if os.path.isfile(path): os.remove(path)
+				else: shutil.rmtree(path)
+			return []
+
+		# if the user has not put in the no_resume flag, we want to prompt them to be sure
+		if (not resume and no_resume) and len(progress_files) > 0: 
+			prompt = input('Found existing progress, do you want to resume? [Y/n] ')
+			resume = prompt.strip().lower() == 'y' or prompt.strip() == ''
+
+		# if resume, the __start_time attribute is set to the last run's
+		if resume: 
+			last_progress_file = progress_files[-1]
+			self.__start_time = os.path.basename(last_progress_file).split('.')[0]
+			self.__log(f'\033[1;93mresuming from {last_progress_file}\033[0m')
+
+		finished_runs = []
+		if resume: 
+			finished_runs = [setting for setting in self.__get_progress() if not 'in progress' in setting]
+		else: 
+			# touch a new progress file
+			with open(self.progress_file, 'a'): pass 
+
+			# NOTE: this does not work if the user has added new runs to the experiment, 
+			# but there is also no lazy way of tracking this, by design.
+			# self.__log(f'\033[1mResuming... {self.__start_time}, {len(self) - len(finished_runs)} remaining\033[0m')
+
+		return finished_runs
+
+	def __set_up_logging(self):
+		''' Set up logging. I'm using tee to ensure we capture system stuff too
+			taken from https://stackoverflow.com/questions/616645/how-to-duplicate-sys-stdout-to-a-log-file
+		'''
+		tee = subprocess.Popen(['tee', '-a', self.log_file], stdin=subprocess.PIPE)
+		# Cause tee's stdin to get a copy of our stdin/stdout (as well as that
+		# of any child processes we spawn)
+		os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
+		os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
+
+		self.__log(f'\033[90mPROGRESS FILE: \t{self.progress_file}\033[0m', flush=True)
+		self.__log(f'\033[90mLOG FILE	  : \t{self.log_file}\033[0m', flush=True)
+
+	def __store_result(self, setting_name: str, result: dict | None):
+		''' Store results if they were returned, thread safe. '''
+
+		if isinstance(result, dict):
+
+			def flatten(dictionary, keys=tuple()):
+				''' if the dictionary is nested, for a proper multiindex we need to convert
+					the nesting to a flat dictionary, where the keys are tuples
+					with setting_name as the first entry in the tuple. 
+				'''
+				for k, v in dictionary.items():
+					if isinstance(v, dict): yield from flatten(v, keys + (k,))
+					else: yield (keys if len(keys) > 1 else keys[0], dictionary)
+			
+			# if the user has defined a tuple as the keys, then assume they have flattened it
+			result = result if isinstance(list(result.keys())[0], tuple) else dict(flatten({setting_name: result})) 
+
+			result_lock = FileLock(self.result_file + '.lock')
+			with result_lock:
+				try: results = pd.read_parquet(self.result_file).T
+				except: results : pd.DataFrame = pd.DataFrame({})
+
+				results = pd.concat([
+					results,
+					pd.DataFrame(result)
+				], axis='columns')
+				results.T.to_parquet(self.result_file)
+
+				self.__log(results.T[::-1]) # reverse to show most recent one first
+			return results
+		else: 
+			self.__log(f'\033[1;31mWARNING: no results returned!\033[0m')
+
+	def __store_progress(self, setting_name):
+		''' Store progress, thread safe. '''
+
+		progress_lock = FileLock(self.progress_file + '.lock')
+		with progress_lock: 
+			with open(self.progress_file, 'a') as progress_file:
+				self.__log(setting_name, file=progress_file)
+
+	def __get_progress(self) -> list:
+		''' Get progress so far, thread safe. '''
+		progress_lock = FileLock(self.progress_file + '.lock')
+		with progress_lock: 
+			with open(self.progress_file, 'r') as progress_file: 
+				progress = [line.strip() for line in progress_file.readlines()]
+		return progress
+
+	def __store_exception(self, setting_name, exception, debug):
+
+		# oh boy this is an interpreted language, let's use it.
+		if debug: 
+			extype, value, tb = sys.exc_info()
+			try: 
+				last_frame = lambda tb=tb: last_frame(tb.tb_next) if tb.tb_next else tb
+				frame = last_frame().tb_frame
+				ns = dict(frame.f_globals)
+				ns.update(frame.f_locals)
+				code.interact(local=ns)
+				return
+			except: 
+				self.__log('\033[1;31mcould not activate `code` debugger, trying `pdb`\033[0m')
+				try: 
+					import pdb; pdb.post_mortem(tb)
+				except: 
+					self.__log('\033[1;31mcould also not activate `pdb` debugger\033[0m')
+				pass
+
+		exc_time = datetime.datetime.now()
+
+		exception_lock = FileLock(self.exc_file + '.lock')
+		with exception_lock: 
+
+			with open(self.exc_file, 'a') as exc_file:
+				self.__log(f'{setting_name} {exc_time.isoformat()}', file=exc_file, flush=True)
+
+			with open(self.exc_file, 'r') as exc_file:
+				exceptions = {setting: datetime.datetime.fromisoformat(time.strip()) for setting, time in \
+							  map(lambda line: line.split(maxsplit=1), exc_file.readlines())}
+				
+		exception_log_lock = FileLock(self.exc_log_file + '.lock')
+		with exception_log_lock:
+			with open(self.exc_log_file, 'a') as exc_log_file:
+				self.__log(f'\n\n{setting_name} {exc_time.isoformat()}', file=exc_log_file)
+				self.__log(traceback.format_exc(), file=exc_log_file)
+
+
+		# TODO: it would be really cool if we could fork the process, 
+		# keep running the rest of the experiments, and set a pdb post-mortem 
+		# See Accepted Answer on SO: https://stackoverflow.com/questions/242485/starting-python-debugger-automatically-on-error
+
+		exception_times = list(exceptions.values())
+		if len(exceptions) >= 3 and (exception_times[-1] - exception_times[(max(len(exception_times) - 4, 0))]).seconds < 3*60:
+			self.__log(f'\033[1;31mThree exceptions in three minutes, quitting\033[0m')
+			raise ChildProcessError('3 Exceptions in 3 minutes, quitting') from exception
+
+	def __run_setting(self, index:int, setting:Experiment, finished_runs: list, debug=False, rerun=False):
+		''' Run setting on one process, with error handling and progress tracking
+			# TODO: logging to multiple files to not clutter the one to bits 
+		'''
+		setting.__num_proc = self.__num_proc
+		index += 1 # for natural language indexing
+		# self.__log(f'{index:04d}: {multiprocess.current_process()._identity[0]}')
+
+		try: 
+			if not rerun and setting.name in finished_runs: 
+				self.__log(f'Skipping {index}: \033[1m{setting.name}\033[0m')
+				return
+
+			# run setting. if it fails, just continue.
+			self.__log(f'\nRunning setting {index}: \n{setting}')
+			result = setting.resume() if hasattr(setting, 'resume') else setting.run()
+			self.__log(f'\nDone with {index}: \033[1m{setting.name}\033[0m\n')
+
+			self.__store_result(setting.name, result)
+			self.__store_progress(setting.name)
+			return
+
+		except Exception as e: # let the user know we're skipping this setting
+			# it can happen that the experiment fails during name initialisation
+			# let's accomomdate to the user and still continue running the rest
+			try: name = setting.name 
+			except: name = f'experiment setting with index {index}'
+
+			self.__log(f' \033[1;31m!!!\033[0m\t\033[1m{name}\033[31m failed \033[0m\n{traceback.format_exc()}')
+			self.__store_exception(setting.name, e, debug) # can raise Exception: too many failures
+
+	def run_all(self, resume=False, no_resume=False, num_proc=1, debug=False, clean=False, rerun=False):
+		''' Run all settings in this Experiment, saving progress to .progress file 
+			and logging to .log file 
+			Optionally, specify whether to resume from last time
+		'''
+		# TODO: Start a tmux session and log to different panes. 
+		# Start pdb on a new pane if an exception is raised. 
+
+		# TODO: Allow user to modify the Experiment while it is still running, 
+		# and launch a separate instance of the same experiment. 
+		# This requires tracking in-progress runs
+
+		finished_runs = self.__prompt_resume(resume, no_resume, clean)
+
+		all_names = [setting.name for setting in copy.deepcopy(self)]
+		duplicates = set([name for name in all_names if all_names.count(name) > 1])
+		assert len(duplicates) == 0, f'All settings must have unique names! Duplicates: \n{duplicates}'
+
+		self.__set_up_logging()
+		if not len(self) == 1: 
+			self.__log(f'Running experiment with following settings: \n{self}', flush=True)
+
+		self.__num_proc = num_proc 
+		if num_proc == 1:
+			# run all settings in this experiment (i.e. perform grid search)
+			for index, setting in enumerate(self):
+				self.__run_setting(index, setting, finished_runs, debug, rerun)
+		else: 
+			with multiprocess.Pool(num_proc) as pool:
+				iterator = map(lambda tup: (*tup, finished_runs, debug, rerun), enumerate(self))
+				pool.starmap(self.__run_setting, iterator, chunksize=1)
+
+		if hasattr(self, 'format_results'): # custom results display defined by user
+			result_lock = FileLock(self.result_file + '.lock')
+			with result_lock:
+				try: results = pd.read_parquet(self.result_file).T
+				except: 
+					self.__log(f'\033[1;31mWARNING: no results found!\033[0m') 
+					return
+			
+			results :pd.DataFrame = self.format_results(results)
+			if results is not None: 
+				results.to_parquet(self.result_file.replace('.parquet', '_formatted.parquet'))
+
+	def __post_init__(self): 
+		''' 1. allows you to declare fields inline when instantiating an Experiment(), 
+			   wrapping the mutables in a Field (field(default_factory=lambda: mutable))
+			2. sets sub-Surfaces as nested; to indicate they should be searched as part
+			   of the parent (TODO: can't remember whether this was actually necessary)
+			3. tries to format f-strings that appear in the setting's attributes, if 
+			   they are formattable. Convenient for defining setting-dependent strings.
+		'''
+
+		# set name of the main experiment object to the class the user defined
+		self.__name = self.__class__.__name__
+
+		uninitialised_fields = {name: _field for \
+			name, _field in self.__dict__.items() if isinstance(_field, Field)
+		}
+		for name, _field in uninitialised_fields.items():
+			setattr(self, name, _field.default_factory())
+
+		# self.__log(f'\nPOST INIT for {self.__class__.__name__}')
+		# self.__log('\n'.join(f'{k}: {type(v)}' for k,v, in self.__items))
+
+		''' 2. set fields as nested, to not track progress in nested classes '''
+		for k, v in self.__items:
+			if isinstance(v, Surface):
+				v.__nested = True 
+
+		''' 3. format attribute strings '''
+		# per string field, collect the names necessary to format the string
+		string_fields = {name: (string, [name for _, name, _, _ in Formatter().parse(string) if name is not None]) \
+						 for name, string in self.__dict__.items() if isinstance(string, str)}
+
+		for name, (string, names) in string_fields.items():
+			try:
+				kwargs = {}
+				for v_name in names: 
+					if not isinstance(getattr(self, v_name), Dimension): 
+						kwargs[v_name] = getattr(self, v_name)
+				setattr(self, name, string.format(**kwargs))
+			except: pass
+
+	def __log(self, message, flush=True, file=None) -> None:
+		''' because I can't be bothered to write if elses everywhere '''
+		if os.environ.get('LOCAL_RANK', 0) == 0: 
+			print(message, flush=flush, file=file)
+
+	def __str__(self) -> str: 
+
+		string = f'\n\033[1;93m{len(self):3} {self.name}\033[0m'
+
+		max_k_len = max(map(len, self.__dict__.keys()))
+		for k,v in self.__items: 
+			# in case of a multiline value (from a Surface), we pad the block
+			v_string = '\n	  '.join(str(v).splitlines()) 
+
+			# dimensions in purple to make it clear to the user 
+			if isinstance(v, Dimension) or isinstance(v, Surface):
+				string += '\n \033[1;95m{:2} {:{}s}: [\033[0m {} \033[95;1m]\033[0m'.format(
+					len(v), k, max_k_len, v_string
+				)
+			else:
+				string += '\n {:2} \033[1m{:{}s}\033[0m: {}'.format(
+					1, k, max_k_len, v_string
+				)
+
+		return string + '\n'
+
+	def __len__(self) -> int:
+		return reduce(
+				lambda a,b: a*b, 
+				map(
+					len,
+					(d for d in self.__dimensions.values()) 
+			), 1
+		) 
+
+	def __iter__(self) -> Iterator[Surface]:
+
+		keys = self.__dimensions.keys()
+		for i, instance in enumerate(product(*[v for v in self.__dimensions.values()])):
+			point = self.__class__(**self.__static_points, **dict(zip(keys, instance)))
+			
+			point.__name = point.clean_class_name + f'-{i}'
+			yield point
+
+
+	@property 
+	def __items(self):
+		''' returns all items in this class, except dunders '''
+		return {k:v for k,v in self.__dict__.items() if not k.startswith('_Experiment__')}.items()
+
+	@property 
+	def __static_points(self) -> Dict[str, Any] :
+		''' dictionary of { var_one: Any, var_two: Any, ... } '''
+		return {k:v for k,v in self.__items if not isinstance(v, Dimension) and not isinstance(v,Surface)}
+
+	@property 
+	def __dimensions(self) -> Dict[str, Dimension]:
+		''' dictionary of { var_one: Dimension, var_two: Dimension, ... } '''
+		return {k:v for k,v in self.__items if isinstance(v,Dimension) or isinstance(v,Surface)}
+
+	@property 
+	def clean_class_name(self) -> str:
+		''' clean class name (without experiment index) '''
+		classname = self.__class__.__name__
+		return classname.split('-')[0] if '-' in classname else classname
+
+
+	@property
+	def progress_file(self) -> str:
+		''' where to store experiment index (to continue at a later time) '''
+		return os.path.join(
+			PROGRESS_DIR, 
+			self.__module__.split('.')[-1],
+			self.clean_class_name,
+			f'{self.__start_time}.progress'
+		)
+
+	@property 
+	def result_file(self) -> str : 
+		return self.progress_file.rsplit('.')[0] + '.parquet'
+
+	@property 
+	def log_file(self) -> str:
+		''' log everything! '''
+		return self.progress_file.rsplit('.')[0] + '.log'
+	
+	@property 
+	def exc_file(self) -> str: 
+		''' exception file '''
+		return self.progress_file.rsplit('.')[0] + '.exceptions'
+
+	@property 
+	def exc_log_file(self) -> str: 
+		''' exception logs for self.__loging the errors '''
+		return self.exc_file.rsplit('.')[0] + '.exceptions.log'
+
 
 

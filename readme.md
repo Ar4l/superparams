@@ -7,57 +7,56 @@ a Pythonic approach to Hyperparameter Search. Using built-in `dataclasses`, as t
 #### Key Features 
 --> 
 
+A high-level experiment manager. 
+
 - One Python file for your entire experiment, flexible and easily versionable.
 - No boilerplate like parsing a text file with configuration variables, multiprocessing code, nor logging/saving results. 
 - Easily re-run failed experiment settings. 
 
 #### Usage 
-Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. 
+Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. Compared to the status-quo, this makes it unambiguously clear what settings an experiment is ran with. 
+
+An example: 
 
 ```python 
 from dataclasses import dataclass
-from hyperparameters import GridSearch, search
+from superparams import Experiment, search
 
 @dataclass
-class Hyperparams(GridSearch):
+class Hyperparams(Experiment):
 
-    epochs        :int   = 3 
-    batch_size    :int   = search([16, 32])
-    learning_rate :float = search([1e-5, 2e-5])
+    steps         :int = 100
+    batch_size    :int = search(16, 32)
 
-def run(self):
-    ''' Run this setting of parameters '''
+    def run(self) -> dict:
+        ''' Runs this setting of parameters (override this method)
+            Auto-stores the returned dict in a parquet.
+        '''
 
-    results = dict(batch=self.batch_size, lr=self.learning_rate)
-    print(results)
+        results = {
+            'total samples': self.batch_size * self.steps
+        }
+        print(results)
 
-    # automatically save results in a parquet file by returning them 
-    return results
+        # automatically save results in a parquet file by returning them 
+        return results
 ```
 
-This inherits a bunch of useful attributes, and constructs an iterator. 
+This inherits a bunch of useful attributes, and constructs an iterator to _grid-search_ the parameter settings.  
 
 ```python
 for h in Hyperparams():
-    print(h)
+    print(f'Setting: {h.steps}, {h.batch_size}')
 
-# Outputs: 
-# Hyperparams(epochs=3, batch_size=16, learning_rate=1e-05)
-# Hyperparams(epochs=3, batch_size=16, learning_rate=2e-05)
-# Hyperparams(epochs=3, batch_size=32, learning_rate=1e-05)
-# Hyperparams(epochs=3, batch_size=32, learning_rate=2e-05)
+    # Setting: 100, 16
+    # Setting: 100, 32
 ```
 
 ###### Flexibility
 Dataclasses don't require Java-style repetitive constructors. To modify your hyperparameter combination, simply instantiate it as follows.
 
 ```python
-Hyperparams(epochs=search([1,2,3]))
-
-#    Search 3 dimensions, total 12 combinations
-#    epochs:            [1, 2, 3]
-#    batch_size:        [16, 32]
-#    learning_rate:     [1e-05, 2e-05]
+Hyperparams(batch_size=search(2,4,8))
 ```
 
 ###### Multiprocessing 
@@ -77,6 +76,34 @@ Also note that `Experiment` objects have access to concurrency-related fields in
 
 - `rank`: the process id of this experiment setting, i.e. `rank in {0,1,2,3}` if `n_proc = 4`. 
 - `n_proc`: parameter passed to the `n_proc` field.
+
+###### Mutable Dataclass Attributes
+Python throws a tantrum if you try to assign a mutable value to a dataclass:
+
+```python
+@dataclass 
+class Params(Experiment):
+    iterable = [1,2,3]
+
+# Error > you should use field(default_factory=lambda: [1,2,3])
+```
+
+This is ugly. Python does this to protect you in case you were to instantiate a second set of Params(), and modify the `iterable`. As it's a class attribute, you'd be modifying both instantiated `Params` objects. 
+
+I think this is stupid and limits the potential of `dataclasses`. For now, using `iterable = search([1,2,3])` should work. In the future, I may rewrite the built-in dataclass to not follow this pattern to make it more explicit. 
+
+Note a similar thing is much more likely to happen in functions, where it is not guarded by python. E.g. in 
+
+```python
+def function(items = [1,2,3])
+    print(items)
+    items.append(4)
+
+function() # [1,2,3]
+function() # [1,2,3,4]
+```
+
+Further reference ([python docs](https://docs.python.org/3/library/dataclasses.html#mutable-default-values))
 
 #### Installation
 A single file for now. Just copy it over. 

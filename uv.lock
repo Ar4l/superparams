@@ -245,17 +245,17 @@ wheels = [
 
 [[package]]
 name = "superparams"
-version = "0.0.2"
+version = "0.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
     { name = "multiprocess" },
     { name = "pandas" },
+    { name = "pyarrow" },
 ]
 
 [package.optional-dependencies]
 dev = [
-    { name = "pyarrow" },
     { name = "pytest" },
     { name = "uv" },
 ]
@@ -265,7 +265,7 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.16.1" },
     { name = "multiprocess", specifier = ">=0.70.17" },
     { name = "pandas", specifier = ">=2.2.3" },
-    { name = "pyarrow", marker = "extra == 'dev'", specifier = ">=18.0.0" },
+    { name = "pyarrow", specifier = ">=18.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3" },
     { name = "uv", marker = "extra == 'dev'", specifier = ">=0.4.28" },
 ]

@@ -4,10 +4,10 @@ def main():
 	import argparse, importlib, sys, os, pickle, dataclasses
 	from .experiment import Experiment as ExperimentClass
 
-	print(f'''
-	hello, from {__file__}
-	cwd: {os.getcwd()}
-	''', flush=True)
+	# print(f'''
+	# hello, from {__file__}
+	# cwd: {os.getcwd()}
+	# ''', flush=True)
 
 	# parse inputs
 	parser = argparse.ArgumentParser()

@@ -62,19 +62,21 @@ def test_readme():
 		steps         :int = 100
 		batch_size    :int = search([16, 32])
 
-	def run(self) -> dict:
-		''' Runs this setting of parameters (override this method)
-			Auto-stores the returned dict in a parquet.
-		'''
+		def run(self) -> dict:
+			''' Runs this setting of parameters (override this method)
+				Auto-stores the returned dict in a parquet.
+			'''
 
-		results = {
-			'total samples': self.batch_size * self.steps
-		}
-		print(results)
+			results = {
+				'total samples': self.batch_size * self.steps
+			}
+			print(results)
 
-		# automatically save results in a parquet file by returning them 
-		return results
+			# automatically save results in a parquet file by returning them 
+			return results
 
+	for h in Hyperparams():
+		print(h)
 
 # def test_
 ## TODO: test

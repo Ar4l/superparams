@@ -7,7 +7,7 @@ def main():
 	print(f'''
 	hello, from {__file__}
 	cwd: {os.getcwd()}
-	''')
+	''', flush=True)
 
 	# parse inputs
 	parser = argparse.ArgumentParser()

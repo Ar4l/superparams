@@ -9,9 +9,9 @@ a Pythonic approach to Hyperparameter Search. Using built-in `dataclasses`, as t
 
 A high-level experiment manager. 
 
-- One Python file for your entire experiment, flexible and easily versionable.
-- No boilerplate like parsing a text file with configuration variables, multiprocessing code, nor logging/saving results. 
-- Easily re-run failed experiment settings. 
+- 📄 One Python file for your entire experiment, flexible and easily versionable.
+- 💚 No boilerplate like parsing a text file with configuration variables, multiprocessing code, nor logging/saving results. 
+- ♻️ Easily re-run failed experiment settings. 
 
 #### Usage 
 Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. Compared to the status-quo, this makes it unambiguously clear what settings an experiment is ran with. 

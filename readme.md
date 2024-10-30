@@ -13,12 +13,23 @@ A high-level experiment manager.
 - 💚 No boilerplate like parsing a text file with configuration variables, multiprocessing code, nor logging/saving results. 
 - ♻️ Easily re-run failed experiment settings. 
 
+#### Installation
+
+```bash
+pip install superparams
+```
+
+View on [PyPi](https://pypi.org/project/superparams/).
+
+
 #### Usage 
 Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. Compared to the status-quo, this makes it unambiguously clear what settings an experiment is ran with. 
 
 An example: 
 
 ```python 
+# experiments/params.py
+
 from dataclasses import dataclass
 from superparams import Experiment, search
 
@@ -42,15 +53,30 @@ class Hyperparams(Experiment):
         return results
 ```
 
-This inherits a bunch of useful attributes, and constructs an iterator to _grid-search_ the parameter settings.  
+This constructs an iterator to _grid-search_ the parameter settings.  
 
 ```python
 for h in Hyperparams():
-    print(f'Setting: {h.steps}, {h.batch_size}')
+    results = h.run()
+    print(f'Setting ({h.steps}, {h.batch_size}): {results}')
 
-    # Setting: 100, 16
-    # Setting: 100, 32
+    # Setting (100, 16): {'total_samples': 1600}
+    # Setting (100, 32): {'total_samples': 3200}
 ```
+
+And, while you could add these two lines at the end of every python file; you can also invoke from the cli!
+
+```bash
+cd experiments # for now, you have to cd; in the future I'll add auto-search
+experiment params.Hyperparams --num_proc 2
+```
+
+This will:
+
+1. print a nice overview of the running experiments
+2. store results and log under `experiments/progress/params/Hyperparams`
+3. prompt you to resume interrupted/failed experiment settings 
+4. do the multiprocessing for you :)
 
 ###### Flexibility
 Dataclasses don't require Java-style repetitive constructors. To modify your hyperparameter combination, simply instantiate it as follows.
@@ -104,9 +130,6 @@ function() # [1,2,3,4]
 ```
 
 Further reference ([python docs](https://docs.python.org/3/library/dataclasses.html#mutable-default-values))
-
-#### Installation
-A single file for now. Just copy it over. 
 
 
 #### TODO

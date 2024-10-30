@@ -7,7 +7,7 @@ from filelock import FileLock
 from string import Formatter
 
 import os, sys, shutil, pickle, traceback, code, copy, subprocess, multiprocess, datetime, pandas as pd
-PROGRESS_DIR = '.' # os.path.join(os.path.dirname(os.path.abspath(__file__)), 'progress')
+PROGRESS_DIR = 'progress/' # os.path.join(os.path.dirname(os.path.abspath(__file__)), 'progress')
 
 
 @dataclass 
@@ -478,7 +478,7 @@ class Experiment(Surface):
 	def log_file(self) -> str:
 		''' log everything! '''
 		return self.progress_file.rsplit('.')[0] + '.log'
-	
+
 	@property 
 	def exc_file(self) -> str: 
 		''' exception file '''

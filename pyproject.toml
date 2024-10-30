@@ -29,7 +29,9 @@ experiment = "superparams:main"
 
 [project.optional-dependencies]
 dev = [
+    "pyarrow>=18.0.0",
     "pytest>=8.3.3",
+    "uv>=0.4.28",
 ]
 
 [build-system]

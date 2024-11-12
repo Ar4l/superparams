@@ -96,7 +96,7 @@ params.run_all(num_proc = os.cpu_count() - 2)
 > [!WARNING]
 > Python-native `multiprocessing` shares the `Hyperparams` data with each process *by pickling it!*. This is woefully inefficient, and poses a massive bottleneck if sharing >50MB data. Consider refactoring such that each `run` method instantiates this data itself.
 >
-> In the future, I may do a refactor that shares the data more efficiently; but this is not trivial in Python.
+> In the future, I may do a refactor that shares the data more efficiently; but this is not trivial in Python. See https://docs.python.org/3/library/multiprocessing.shared_memory.html#module-multiprocessing.shared_memory
 
 Also note that `Experiment` objects have access to concurrency-related fields initialised by superparams. These are:
 

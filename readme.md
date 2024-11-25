@@ -23,12 +23,10 @@ View on [PyPi](https://pypi.org/project/superparams/).
 
 
 #### Usage 
-Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. Compared to the status-quo, this makes it unambiguously clear what settings an experiment is ran with. 
-
-An example: 
+Superparams incentivises use of Python's built-in `dataclass` to specify both the parameters and the experiment-specific logic in one place. It bundles this with a bunch of quality-of-life improvements for managing your experiments. 
 
 ```python 
-# experiments/params.py
+# file: experiments/params.py
 
 from dataclasses import dataclass
 from superparams import Experiment, search
@@ -51,23 +49,36 @@ class Hyperparams(Experiment):
 
         # automatically save results in a parquet file by returning them 
         return results
+
+    def format_results(self, results: pd.DataFrame) -> None | pd.DataFrame:
+        ''' 
+        Useful for plotting and post-processing, 
+        optionally can return formatted dataframe to be saved 
+        '''
+        import plotly.express as px 
+        fig = px.bar(results, x='index', y='total_samples)
+        fig.show()
 ```
 
-This constructs an iterator to _grid-search_ the parameter settings.  
+This constructs an iterator to _grid-search_ the parameter settings, 
+meaning you could add a snippet like the following to invoke your experiment 
+from the terminal with `python experiments/params.py`.
 
 ```python
-for h in Hyperparams():
-    results = h.run()
-    print(f'Setting ({h.steps}, {h.batch_size}): {results}')
+# file: experiments/params.py
 
-    # Setting (100, 16): {'total_samples': 1600}
-    # Setting (100, 32): {'total_samples': 3200}
+if __name__ == '__main__':
+    for h in Hyperparams():
+        results = h.run()
+        print(f'Setting ({h.steps}, {h.batch_size}): {results}')
+        # Setting (100, 16): {'total_samples': 1600}
+        # Setting (100, 32): {'total_samples': 3200}
 ```
 
-And, while you could add these two lines at the end of every python file; you can also invoke from the cli!
+But _we promised no boilerplate_! Instead, you can invoke from the terminal,
+which handles result-caching for you, and enables easy multiprocessing. 
 
 ```bash
-cd experiments # for now, you have to cd; in the future I'll add auto-search
 experiment params.Hyperparams --num_proc 2
 ```
 
@@ -77,6 +88,12 @@ This will:
 2. store results and log under `experiments/progress/params/Hyperparams`
 3. prompt you to resume interrupted/failed experiment settings 
 4. do the multiprocessing for you :)
+
+> [!WARNING]
+> Python-native `multiprocessing` shares the `Hyperparams` data with each process *by pickling it!*. This is woefully inefficient, and poses a massive bottleneck if sharing >10MB data. Consider refactoring such that each `run` method instantiates this data itself.
+>
+> In the future, I may do a refactor that shares the data more efficiently; but this is not trivial in Python. See https://docs.python.org/3/library/multiprocessing.shared_memory.html#module-multiprocessing.shared_memory
+
 
 ###### Flexibility
 Dataclasses don't require Java-style repetitive constructors. To modify your hyperparameter combination, simply instantiate it as follows.
@@ -92,11 +109,6 @@ You can run multiple settings on multiple processes.
 params = Hyperparams()
 params.run_all(num_proc = os.cpu_count() - 2)
 ```
-
-> [!WARNING]
-> Python-native `multiprocessing` shares the `Hyperparams` data with each process *by pickling it!*. This is woefully inefficient, and poses a massive bottleneck if sharing >50MB data. Consider refactoring such that each `run` method instantiates this data itself.
->
-> In the future, I may do a refactor that shares the data more efficiently; but this is not trivial in Python. See https://docs.python.org/3/library/multiprocessing.shared_memory.html#module-multiprocessing.shared_memory
 
 Also note that `Experiment` objects have access to concurrency-related fields initialised by superparams. These are:
 
@@ -134,7 +146,11 @@ Further reference ([python docs](https://docs.python.org/3/library/dataclasses.h
 
 #### TODO
 
-- [ ] cli fn to run `experiment exp.RQ1`. 
+- [ ] nice overview of available experiments + improve progress reporting to work better across multiple processes.
+- [ ] try merging `.progress.lock` lockfile with the `.progress` file, requires multiprocessing tests :). 
+- [ ] allow running multiple experiments defined in one file. I.e. `experiment dataset` runs all classes found in dataset. We should be able to do this by checking if the final component is a filename, or a directory name. 
+- [ ] allow relative imports in libraries imported by experiment.
+- [x] cli fn to run `experiment exp.RQ1`. 
 - [ ] Encapsulate current `__main__` into a class, so the user can just add 
       ```python
       # some/path/to/custom/experiments/__main__.py

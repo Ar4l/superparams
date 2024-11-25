@@ -1,4 +1,4 @@
-from .experiment import Experiment, search 
+from .experiment import Experiment, search, field
 
 def main(): 
 	import argparse, importlib, sys, os, pickle, dataclasses

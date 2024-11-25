@@ -1,6 +1,6 @@
 [project]
 name = "superparams"
-version = "0.0.5"
+version = "0.0.6"
 
 authors = [
     { name="Aral", email="me@aral.cc" }

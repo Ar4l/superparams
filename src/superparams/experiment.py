@@ -1,14 +1,14 @@
 from __future__ import annotations
 from itertools import product
 from functools import reduce
-from dataclasses import dataclass, field, Field
+from dataclasses import dataclass, field as dataclasses_field, Field
 from typing import Dict, List, Any, Iterator
 from filelock import FileLock
 from string import Formatter
 
 import os, sys, shutil, pickle, traceback, code, copy, subprocess, multiprocess, datetime, pandas as pd
-PROGRESS_DIR = 'progress/' # os.path.join(os.path.dirname(os.path.abspath(__file__)), 'progress')
 
+from .shared import PROGRESS_DIR
 
 @dataclass 
 class Dimension: 
@@ -53,7 +53,12 @@ T = TypeVar('T')
 
 def search(*points: T) -> T: 
 	''' to be used within a Surface definition '''
-	return field(default_factory=lambda: Dimension(points))
+	return dataclasses_field(default_factory=lambda: Dimension(points))
+
+def field(point: T) -> T: 
+	''' alternative to dataclasses' demonic ass field definition ''' 
+	return dataclasses_field(default_factory = lambda: Dimension([point]))
+
 
 @dataclass 
 class Surface: 
@@ -87,8 +92,8 @@ class Experiment(Surface):
 		```
 	'''
 	__name		 :str = 'Experiment'
-	__nested	:bool = field(default=False, kw_only=True) # TODO: do we still need this field?
-	__start_time: str = field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
+	__nested	:bool = dataclasses_field(default=False, kw_only=True) # TODO: do we still need this field?
+	__start_time: str = dataclasses_field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
 
 	@property 
 	def name(self) -> str:
@@ -348,7 +353,7 @@ class Experiment(Surface):
 				except: 
 					self.__log(f'\033[1;31mWARNING: no results found!\033[0m') 
 					return
-			
+
 			results :pd.DataFrame = self.format_results(results)
 			if results is not None: 
 				results.to_parquet(self.result_file.replace('.parquet', '_formatted.parquet'))
@@ -488,6 +493,4 @@ class Experiment(Surface):
 	def exc_log_file(self) -> str: 
 		''' exception logs for self.__loging the errors '''
 		return self.exc_file.rsplit('.')[0] + '.exceptions.log'
-
-
 

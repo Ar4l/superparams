@@ -3,11 +3,7 @@ from .experiment import Experiment, search
 def main(): 
 	import argparse, importlib, sys, os, pickle, dataclasses
 	from .experiment import Experiment as ExperimentClass
-
-	# print(f'''
-	# hello, from {__file__}
-	# cwd: {os.getcwd()}
-	# ''', flush=True)
+	from .shared import EXPERIMENTS_DIR
 
 	# parse inputs
 	parser = argparse.ArgumentParser()
@@ -21,17 +17,55 @@ def main():
 	parser.add_argument('--from_pickle', help='load a pickled Experiment, intended for programmatic control')
 	args, unknown = parser.parse_known_args()
 
-	# Python does not seem to include editable packages in the env 
-	# when invoking via CLI provided by __main__.py
-	sys.path.insert(
-		0, 
-		'',
-	)
+	# To find the experiment:
+	# 1. check if we are already in a EXPERIMENTS_DIR. 
+	#		if yes, add the parent dir to the sys.path 
+	#		so that the package is recognised by the interpreter 
+	#
+	#		(this assumes EXPERIMENTS_DIR is only one level deep, 
+	#		 but so does `python -m`)
+	#
+	#		 Then, update the progress_dir to be inside EXPERIMENTS_DIR
+	#
+	# 2. check if EXPERIMENTS_DIR is present in the cwd and cd into it 
+	#		cool we should be in the top-level package.
+	#		though there is no real way to be sure, in case EXPERIMENTS_DIR
+	#		is more than one level deep 
+
+	# if the user is inside the experiments directory 
+	# (which we assume to be only one level deep in the package), 
+	# then add the package root to sys.path 
+
+	is_experiments_dir = lambda dirname: \
+		os.path.basename(dirname) == EXPERIMENTS_DIR
+	cwd = os.getcwd()
+
+	package_path = os.path.dirname(cwd) if is_experiments_dir(cwd) else cwd
+	sys.path.insert(0, package_path)
+
+	module, experiment_class = args.experiment.rsplit('.', maxsplit=1)
+
+	if not module.split('.')[0] == EXPERIMENTS_DIR: 
+		module = f'{EXPERIMENTS_DIR}.{module}'
+
+	# todo: for relative imports 
+	# this __package__ is indeed the top-level package 
+	# but I don't know if that is because we are in the superparams package, 
+	# or whether it's working as intended. Probably need to test this 
+	# in another repository to be sure
+
+	# paths = '\n'.join(sys.path)
+	# print(f'''
+	# \033[1mhello, from {__file__} in {__package__}\033[0m
+	# cwd: {os.getcwd()}
+	# module: {module}
+	# exp:	{experiment_class}
+	# path: {paths}
+	# ''', flush=True)
 
 	# import the Experiment
-	module, experiment = args.experiment.rsplit('.', maxsplit=1)
 	module = importlib.import_module(module)
-	Experiment : ExperimentClass = getattr(module, experiment)
+	Experiment : ExperimentClass = getattr(module, experiment_class)
 
 	# load extra kwargs into an Experiment
 	if len(unknown) > 0: 
@@ -46,14 +80,14 @@ def main():
 				raise ValueError(f'{k} does not exist in {Experiment}')
 
 			unknown_kwargs[k] = field_types[k](v)
-		experiment = Experiment(**unknown_kwargs)
+		experiment_class = Experiment(**unknown_kwargs)
 
 	# base: assume all experiment attributes are defined in its class
 	else: 
-		experiment = Experiment()
+		experiment_class = Experiment()
 
 
-	experiment.run_all(
+	experiment_class.run_all(
 		resume=args.resume, no_resume=args.no_resume, 
 		num_proc=args.num_proc, debug=args.debug,
 		clean=args.clean, rerun=args.rerun,

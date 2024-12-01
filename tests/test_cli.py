@@ -41,9 +41,9 @@ def verify_experiment(cls):
 
 	# cleanup
 	warnings.warn(UserWarning(f'\033[1mdeleting {progress_dir}\033[0m'))
+	time.sleep(1)
 	shutil.rmtree(progress_dir)
 	# wait at least 1 second
-	time.sleep(1)
 
 
 def test_cli(): 

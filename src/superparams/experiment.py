@@ -464,33 +464,59 @@ class Experiment(Surface):
 		classname = self.__class__.__name__
 		return classname.split('-')[0] if '-' in classname else classname
 
-
-	@property
-	def progress_file(self) -> str:
-		''' where to store experiment index (to continue at a later time) '''
+	@property 
+	def experiment_dir(self) -> str: 
+		f'''
+		Output directory in {PROGRESS_DIR}/filename/Classname/
+		'''
 		return os.path.join(
 			PROGRESS_DIR, 
 			self.__module__.split('.')[-1],
 			self.clean_class_name,
-			f'{self.__start_time}.progress'
 		)
 
 	@property 
+	def __experiment_file(self) -> str: 
+		''' Used for storing the below files '''
+		return os.path.join(self.experiment_dir, f'{self.__start_time}')
+
+	@property
+	def progress_file(self) -> str:
+		f''' 
+		Progress is stored by saving experiment index to
+		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.progress
+		'''
+		return self.__experiment_file + '.progress'
+
+	@property 
 	def result_file(self) -> str : 
-		return self.progress_file.rsplit('.')[0] + '.parquet'
+		f''' 
+		Results are stored in a dataframe at the path:
+		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.parquet
+		'''
+		return self.__experiment_file + '.parquet'
 
 	@property 
 	def log_file(self) -> str:
-		''' log everything! '''
-		return self.progress_file.rsplit('.')[0] + '.log'
+		f''' 
+		Log everything! A copy of terminal output is stored at
+		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.log
+		'''
+		return self.__experiment_file + '.log'
 
 	@property 
 	def exc_file(self) -> str: 
-		''' exception file '''
-		return self.progress_file.rsplit('.')[0] + '.exceptions'
+		f''' 
+		Experiment indices that had an Exception are stored at 
+		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.exceptions
+		'''
+		return self.__experiment_file + '.exceptions'
 
 	@property 
 	def exc_log_file(self) -> str: 
-		''' exception logs for self.__loging the errors '''
-		return self.exc_file.rsplit('.')[0] + '.exceptions.log'
+		f''' 
+		Exception stack traces are stored at 
+		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.exceptions.log
+		'''
+		return self.__experiment_file + '.exceptions.log'
 

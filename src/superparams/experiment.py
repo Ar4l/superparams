@@ -150,18 +150,24 @@ class Experiment(Surface):
 			return []
 
 		# if the user has not put in the no_resume flag, we want to prompt them to be sure
-		if (not resume and no_resume) and len(progress_files) > 0: 
+		if (not resume and no_resume) and not len(progress_files) == 0: 
 			prompt = input('Found existing progress, do you want to resume? [Y/n] ')
 			resume = prompt.strip().lower() == 'y' or prompt.strip() == ''
 
 		# if resume, the __start_time attribute is set to the last run's
 		if resume: 
-			last_progress_file = progress_files[-1]
-			self.__start_time = os.path.basename(last_progress_file).split('.')[0]
-			self.__log(f'\033[1;93mresuming from {last_progress_file}\033[0m')
+			# can happen if the user cancelled their first experiment 
+			# but still passes the --resume flag
+			if len(progress_files) == 0: 
+				self.__log(f'\033[1;93mNothing to resume from, starting new experiment\033[0m')
+
+			else: 
+				last_progress_file = progress_files[-1]
+				self.__start_time = os.path.basename(last_progress_file).split('.')[0]
+				self.__log(f'\033[1;93mresuming from {last_progress_file}\033[0m')
 
 		finished_runs = []
-		if resume: 
+		if resume and not len(progress_files) == 0: 
 			finished_runs = [setting for setting in self.__get_progress() if not 'in progress' in setting]
 		else: 
 			# touch a new progress file

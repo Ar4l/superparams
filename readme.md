@@ -79,7 +79,7 @@ But _we promised no boilerplate_! Instead, you can invoke from the terminal,
 which handles result-caching for you, and enables easy multiprocessing. 
 
 ```bash
-experiment params.Hyperparams --num_proc 2
+experiment params.Hyperparams --n_proc 2
 ```
 
 This will:
@@ -107,7 +107,7 @@ You can run multiple settings on multiple processes.
 
 ```python
 params = Hyperparams()
-params.run_all(num_proc = os.cpu_count() - 2)
+params.run_all(n_proc = os.cpu_count() - 2)
 ```
 
 Also note that `Experiment` objects have access to concurrency-related fields initialised by superparams. These are:
@@ -146,6 +146,8 @@ Further reference ([python docs](https://docs.python.org/3/library/dataclasses.h
 
 #### TODO
 
+- [ ] caching experiments based on the hyperparameters, 
+- [ ] allowing operations based on the hyperparameters in `format_results` e.g. `max(dimension)`.
 - [ ] nice overview of available experiments + improve progress reporting to work better across multiple processes.
 - [ ] try merging `.progress.lock` lockfile with the `.progress` file, requires multiprocessing tests :). 
 - [ ] allow running multiple experiments defined in one file. I.e. `experiment dataset` runs all classes found in dataset. We should be able to do this by checking if the final component is a filename, or a directory name. 

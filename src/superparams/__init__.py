@@ -10,7 +10,7 @@ def main():
 	parser.add_argument('experiment', help = 'module.Experiment to run')
 	parser.add_argument('--resume', default=False, action = 'store_true', help = 'resume last run?')
 	parser.add_argument('--no-resume', action = 'store_false', help= 'no resume prompt?')
-	parser.add_argument('--num_proc', type=int, default=1, help = 'multiprocessing?')
+	parser.add_argument('--n_proc', type=int, default=1, help = 'multiprocessing?')
 	parser.add_argument('--debug', action='store_true', help = 'enter pdb on error?')
 	parser.add_argument('--clean', action='store_true', help = 'clean the progress for this experiment?')
 	parser.add_argument('--rerun', action='store_true', help = 'rerun the experiment? (saves to same parquet)')
@@ -89,6 +89,6 @@ def main():
 
 	experiment_class.run_all(
 		resume=args.resume, no_resume=args.no_resume, 
-		num_proc=args.num_proc, debug=args.debug,
+		n_proc=args.n_proc, debug=args.debug,
 		clean=args.clean, rerun=args.rerun,
 	)

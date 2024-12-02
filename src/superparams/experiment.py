@@ -81,14 +81,19 @@ class Surface:
 
 @dataclass 
 class Experiment(Surface): 
-	''' Grid search a dataclass. Provide searchable values as follows: 
+	''' Grid-search a dataclass. Has the following attributes:
+
+		- `exp.name = Class-k`		Where k is a setting's index
+		- `exp.debug = False`		Whether --debug was passed 
+		- `exp.n_proc = 1`			Number passed to --n_proc
+		- `exp.proc_id = 0 `		Current process index [0, n_proc)
+
+		## Usage 
 		```python
 		@dataclass
-		class Params(GridSearch):
+		class Params(Experiment):
 			a :int = search(1,2,3)
 			b :str = 'b'
-		
-		for param in Params(): ...
 		```
 	'''
 	__name		 :str = 'Experiment'
@@ -108,16 +113,16 @@ class Experiment(Surface):
 
 	@property 
 	def proc_id(self) -> int:
-		''' Return the processor id in case of multithreading (between 1 - num_proc)
+		''' Return the processor id in case of multithreading (between 1 - n_proc)
 			returns 0 if no multiprocessing is enabled (main thread execution)
 		'''
 		return 0 if len(multiprocess.current_process()._identity) == 0 \
 			else multiprocess.current_process()._identity[0]
 	
 	@property 
-	def num_proc(self) -> int:
-		''' Return the variable passed to num_proc flag, 1 by default (no multiprocessing) '''
-		return self.__num_proc 
+	def n_proc(self) -> int:
+		''' Return the variable passed to n_proc flag, 1 by default (no multiprocessing) '''
+		return self.__n_proc 
 
 	@property 
 	def debug(self) -> bool: 
@@ -298,7 +303,7 @@ class Experiment(Surface):
 		''' Run setting on one process, with error handling and progress tracking
 			# TODO: logging to multiple files to not clutter the one to bits 
 		'''
-		setting.__num_proc = self.__num_proc
+		setting.__n_proc = self.__n_proc
 		index += 1 # for natural language indexing
 		# self.__log(f'{index:04d}: {multiprocess.current_process()._identity[0]}')
 
@@ -325,7 +330,7 @@ class Experiment(Surface):
 			self.__log(f' \033[1;31m!!!\033[0m\t\033[1m{name}\033[31m failed \033[0m\n{traceback.format_exc()}')
 			self.__store_exception(setting.name, e, debug) # can raise Exception: too many failures
 
-	def run_all(self, resume=False, no_resume=False, num_proc=1, debug=False, clean=False, rerun=False):
+	def run_all(self, resume=False, no_resume=False, n_proc=1, debug=False, clean=False, rerun=False):
 		''' Run all settings in this Experiment, saving progress to .progress file 
 			and logging to .log file 
 			Optionally, specify whether to resume from last time
@@ -347,14 +352,14 @@ class Experiment(Surface):
 		if not len(self) == 1: 
 			self.__log(f'Running experiment with following settings: \n{self}', flush=True)
 
-		self.__num_proc = num_proc 
+		self.__n_proc = n_proc 
 		self.__debug = debug
-		if num_proc == 1:
+		if n_proc == 1:
 			# run all settings in this experiment (i.e. perform grid search)
 			for index, setting in enumerate(self):
 				self.__run_setting(index, setting, finished_runs, debug, rerun)
 		else: 
-			with multiprocess.Pool(num_proc) as pool:
+			with multiprocess.Pool(n_proc) as pool:
 				iterator = map(lambda tup: (*tup, finished_runs, debug, rerun), enumerate(self))
 				pool.starmap(self.__run_setting, iterator, chunksize=1)
 

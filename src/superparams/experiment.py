@@ -119,6 +119,11 @@ class Experiment(Surface):
 		''' Return the variable passed to num_proc flag, 1 by default (no multiprocessing) '''
 		return self.__num_proc 
 
+	@property 
+	def debug(self) -> bool: 
+		''' Return whether the --debug flag was passed, False by default '''
+		return self.__debug
+
 	def as_dict(self) -> dict[str, Any]:
 		''' return a dictionary representation of this Experiment object
 			TODO: do we also convert sub-Experiments to dictionaries? '''
@@ -218,9 +223,9 @@ class Experiment(Surface):
 					results,
 					pd.DataFrame(result)
 				], axis='columns')
-				results.T.to_parquet(self.result_file)
+				results.to_parquet(self.result_file)
 
-				self.__log(results.T[::-1]) # reverse to show most recent one first
+				self.__log(results[::-1]) # reverse to show most recent one first
 			return results
 		else: 
 			self.__log(f'\033[1;31mWARNING: no results returned!\033[0m')
@@ -343,6 +348,7 @@ class Experiment(Surface):
 			self.__log(f'Running experiment with following settings: \n{self}', flush=True)
 
 		self.__num_proc = num_proc 
+		self.__debug = debug
 		if num_proc == 1:
 			# run all settings in this experiment (i.e. perform grid search)
 			for index, setting in enumerate(self):

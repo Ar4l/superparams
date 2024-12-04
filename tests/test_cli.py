@@ -13,9 +13,34 @@ import os, time, warnings, subprocess, glob, shutil, itertools
 
 PROGRESS_DIR = 'tests/assets/experiments/progress/'
 
+def run_experiments(path='dummy.Dummy') -> iter: 
+	'''
+	Run experiment class from all the locations 
+	that it should work, returns an iterator of 
+	location and command executed there.
+	'''
+
+	# using --no-resume to avoid interactivity
+	commands = [
+		f'experiment {path} --no-resume', 
+		f'experiment experiments.{path} --no-resume',
+	]
+	locations = [ 'tests/assets', 'tests/assets/experiments' ] 
+
+	for location, command in itertools.product(locations, commands): 
+
+		subprocess.check_call(f'''
+			cd {location} 
+			uv run -- {command}
+		'''.strip(), shell=True)
+
+		yield location, command
+
+
 def verify_experiment(cls): 
-	''' verifies an experiment's progress dir is created and the full 
-		experiment is ran (according to *.progress file)
+	''' 
+	Verifies an experiment's progress dir is created and the full 
+	experiment is ran (according to *.progress file)
 	'''
 
 	progress_dir = os.path.join(
@@ -54,24 +79,9 @@ def test_cli():
 		dummy.Dummy 
 		experiment.dummy.Dummy
 	'''
-
 	from tests.assets.experiments.dummy import Dummy
-
-	# using --no-resume to avoid interactivity
-	commands = [
-		'experiment dummy.Dummy --no-resume', 
-		'experiment experiments.dummy.Dummy --no-resume',
-	]
-	locations = [ 'tests/assets', 'tests/assets/experiments' ] 
-
-	for location, command in itertools.product(locations, commands): 
-		subprocess.check_call(f'''
-			cd {location} 
-			uv run -- {command}
-		'''.strip(), shell=True)
-
+	for location, command in run_experiments('dummy.Dummy'):
 		verify_experiment(Dummy)
-
 
 def test_cli_with_imports(): 
 	''' 
@@ -88,18 +98,25 @@ def test_cli_with_imports():
 	sys.path.insert(0, os.path.abspath('tests/assets'))
 	from tests.assets.experiments.subdir.sub_dummy import Dummy
 
-	# using --no-resume to avoid interactivity
-	commands = [
-		'experiment subdir.sub_dummy.Dummy --no-resume', 
-		'experiment experiments.subdir.sub_dummy.Dummy --no-resume',
-	]
-	locations = [ 'tests/assets', 'tests/assets/experiments' ] 
-
-	for location, command in itertools.product(locations, commands): 
-		subprocess.check_call(f'''
-			cd {location} 
-			uv run -- {command}
-		'''.strip(), shell=True)
-
+	for location, command in run_experiments('subdir.sub_dummy.Dummy'):
 		verify_experiment(Dummy)
- 
+
+def test_cli_with_debug():
+	'''
+	Assert when --debug is passed
+
+	1. experiment has `debug` property
+	2. together with --clean, only debug experiments are removed
+	'''
+
+	from tests.assets.experiments.debug import Debug
+	for location, command in run_experiments('debug.Debug'): 
+
+		out_dir = os.path.join(PROGRESS_DIR, 'debug/Debug/')
+		result_files = glob.glob(out_dir + '*.parquet')
+
+		assert False, 'this is left to do'
+		
+		verify_experiment(Debug)
+
+	pass

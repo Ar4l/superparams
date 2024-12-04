@@ -38,3 +38,11 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "superparams",
+]
+
+[tool.uv.sources]
+superparams = { workspace = true }
+

@@ -6,7 +6,9 @@ from typing import Dict, List, Any, Iterator
 from filelock import FileLock
 from string import Formatter
 
-import os, sys, shutil, pickle, traceback, code, copy, subprocess, multiprocess, datetime, pandas as pd
+import os, sys, shutil, pickle, traceback, code, copy
+import subprocess, datetime, warnings
+import multiprocess, pandas as pd
 
 from .shared import PROGRESS_DIR
 
@@ -98,15 +100,18 @@ class Experiment(Surface):
 	'''
 	__name		 :str = 'Experiment'
 	__nested	:bool = dataclasses_field(default=False, kw_only=True) # TODO: do we still need this field?
+
 	__start_time: str = dataclasses_field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
+	__debug		:bool = dataclasses_field(init=False, default=False, kw_only=True)
+	__n_proc	 :int = dataclasses_field(init=False, default=1, kw_only=True)
 
 	@property 
 	def name(self) -> str:
 		''' Override this method to give a descriptive name to your experiment.
 			You can use properties and variables in the name to identify it. 
 		'''
-		return self.__name
-	
+		return self.__name if not self.__debug else '_' + self.__name 
+
 	@name.setter 
 	def name(self, name: str) -> None: 
 		self.__name = name 
@@ -228,9 +233,11 @@ class Experiment(Surface):
 					results,
 					pd.DataFrame(result)
 				], axis='columns')
-				results.to_parquet(self.result_file)
+				# needs to be transpose to concatenate above, 
+				# while still allowing for parquetisation of objects
+				results.T.to_parquet(self.result_file)
 
-				self.__log(results[::-1]) # reverse to show most recent one first
+				self.__log(results.T[::-1]) # reverse to show most recent one first
 			return results
 		else: 
 			self.__log(f'\033[1;31mWARNING: no results returned!\033[0m')
@@ -317,8 +324,15 @@ class Experiment(Surface):
 			result = setting.resume() if hasattr(setting, 'resume') else setting.run()
 			self.__log(f'\nDone with {index}: \033[1m{setting.name}\033[0m\n')
 
-			self.__store_result(setting.name, result)
+			results = self.__store_result(setting.name, result)
 			self.__store_progress(setting.name)
+
+			if results is not None and hasattr(self, 'format_results'): 
+				try: self.format_results(results)
+				except: warnings.warn(UserWarning(
+					f'Could not pre-format results for {setting.name}'
+				))
+
 			return
 
 		except Exception as e: # let the user know we're skipping this setting
@@ -350,10 +364,17 @@ class Experiment(Surface):
 
 		self.__set_up_logging()
 		if not len(self) == 1: 
-			self.__log(f'Running experiment with following settings: \n{self}', flush=True)
+			self.__log((
+				f'Running '
+				'debug ' if debug else '' 
+				'experiment with following settings'
+				f' on {n_proc} procs:' if n_proc > 1 else ':'
+				f'\n{self}'
+			), flush=True)
 
-		self.__n_proc = n_proc 
-		self.__debug = debug
+		self.__debug = debug 
+		self.__n_proc = n_proc
+
 		if n_proc == 1:
 			# run all settings in this experiment (i.e. perform grid search)
 			for index, setting in enumerate(self):

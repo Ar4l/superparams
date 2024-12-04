@@ -86,7 +86,6 @@ def main():
 	else: 
 		experiment_class = Experiment()
 
-
 	experiment_class.run_all(
 		resume=args.resume, no_resume=args.no_resume, 
 		n_proc=args.n_proc, debug=args.debug,

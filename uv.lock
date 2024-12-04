@@ -245,7 +245,7 @@ wheels = [
 
 [[package]]
 name = "superparams"
-version = "0.0.7"
+version = "0.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
@@ -269,6 +269,9 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3" },
     { name = "uv", marker = "extra == 'dev'", specifier = ">=0.4.28" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "superparams", editable = "." }]
 
 [[package]]
 name = "tzdata"

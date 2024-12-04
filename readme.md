@@ -37,13 +37,18 @@ class Hyperparams(Experiment):
     steps         :int = 100
     batch_size    :int = search(16, 32)
 
+    # and automatic string substitution!
+    dataset_name  :str = search('alphabet', 'numbers')
+    dataset_path  :str = search('data/raw/{dataset_name}')
+
     def run(self) -> dict:
         ''' Runs this setting of parameters (override this method)
             Auto-stores the returned dict in a parquet.
         '''
 
         results = {
-            'total samples': self.batch_size * self.steps
+            'total samples':  self.batch_size * self.steps, 
+            'path':           self.dataset_path
         }
         print(results)
 
@@ -56,7 +61,7 @@ class Hyperparams(Experiment):
         optionally can return formatted dataframe to be saved 
         '''
         import plotly.express as px 
-        fig = px.bar(results, x='index', y='total_samples)
+        fig = px.bar(results, x='index', y='total_samples')
         fig.show()
 ```
 
@@ -146,6 +151,10 @@ Further reference ([python docs](https://docs.python.org/3/library/dataclasses.h
 
 #### TODO
 
+- [ ] allow returning a dataframe in `run(self)`.
+- [ ] try calling `format_results` at the end of every experiment, 
+      exceptions are only sent as a warning (one if just one or all, 
+      multiple if just some), until the last experiment.
 - [ ] caching experiments based on the hyperparameters, 
 - [ ] allowing operations based on the hyperparameters in `format_results` e.g. `max(dimension)`.
 - [ ] nice overview of available experiments + improve progress reporting to work better across multiple processes.

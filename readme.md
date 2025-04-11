@@ -151,6 +151,7 @@ Further reference ([python docs](https://docs.python.org/3/library/dataclasses.h
 
 #### TODO
 
+- [ ] just running `experiment` lists the available experiments.
 - [ ] allow returning a dataframe in `run(self)`: port to polars, 
       we currently also only allow one-dimensional data, which is 
       majorly inconvenient.

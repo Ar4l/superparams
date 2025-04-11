@@ -107,8 +107,9 @@ class Experiment(Surface):
 
 	@property 
 	def name(self) -> str:
-		''' Override this method to give a descriptive name to your experiment.
-			You can use properties and variables in the name to identify it. 
+		''' 
+		Override this method to give a descriptive name to your experiment.
+		You can use properties and variables in the name to identify it. 
 		'''
 		return self.__name if not self.__debug else '_' + self.__name 
 
@@ -195,8 +196,9 @@ class Experiment(Surface):
 		return finished_runs
 
 	def __set_up_logging(self):
-		''' Set up logging. I'm using tee to ensure we capture system stuff too
-			taken from https://stackoverflow.com/questions/616645/how-to-duplicate-sys-stdout-to-a-log-file
+		''' 
+		Set up logging. I'm using tee to ensure we capture system stuff too
+		taken from https://stackoverflow.com/questions/616645/how-to-duplicate-sys-stdout-to-a-log-file
 		'''
 		try: 
 			tee = subprocess.Popen(['tee', '-a', self.log_file], stdin=subprocess.PIPE)
@@ -214,7 +216,9 @@ class Experiment(Surface):
 			)
 
 	def __store_result(self, setting_name: str, result: dict | None):
-		''' Store results if they were returned, thread safe. '''
+		''' 
+		Store results if they were returned, thread safe. 
+		'''
 
 		if isinstance(result, dict):
 
@@ -249,7 +253,9 @@ class Experiment(Surface):
 			self.__log(f'\033[1;31mWARNING: no results returned!\033[0m')
 
 	def __store_progress(self, setting_name):
-		''' Store progress, thread safe. '''
+		''' 
+		Store progress, thread safe. 
+		'''
 
 		progress_lock = FileLock(self.progress_file + '.lock')
 		with progress_lock: 
@@ -270,6 +276,11 @@ class Experiment(Surface):
 		if debug: 
 			extype, value, tb = sys.exc_info()
 			try: 
+				import pdb; pdb.post_mortem(tb)
+			except: 
+				self.__log('\033[1;31mcould also not activate `pdb` debugger\033[0m')
+
+			try: 
 				last_frame = lambda tb=tb: last_frame(tb.tb_next) if tb.tb_next else tb
 				frame = last_frame().tb_frame
 				ns = dict(frame.f_globals)
@@ -278,10 +289,6 @@ class Experiment(Surface):
 				return
 			except: 
 				self.__log('\033[1;31mcould not activate `code` debugger, trying `pdb`\033[0m')
-				try: 
-					import pdb; pdb.post_mortem(tb)
-				except: 
-					self.__log('\033[1;31mcould also not activate `pdb` debugger\033[0m')
 				pass
 
 		exc_time = datetime.datetime.now()
@@ -313,8 +320,9 @@ class Experiment(Surface):
 			raise ChildProcessError('3 Exceptions in 3 minutes, quitting') from exception
 
 	def __run_setting(self, index:int, setting:Experiment, finished_runs: list, debug=False, rerun=False):
-		''' Run setting on one process, with error handling and progress tracking
-			# TODO: logging to multiple files to not clutter the one to bits 
+		''' 
+		Run setting on one process, with error handling and progress tracking
+		# TODO: logging to multiple files to not clutter the one to bits 
 		'''
 		setting.__n_proc = self.__n_proc
 		index += 1 # for natural language indexing
@@ -353,9 +361,9 @@ class Experiment(Surface):
 			self.__store_exception(setting.name, e, debug) # can raise Exception: too many failures
 
 	def run_all(self, resume=False, no_resume=False, n_proc=1, debug=False, clean=False, rerun=False):
-		''' Run all settings in this Experiment, saving progress to .progress file 
-			and logging to .log file 
-			Optionally, specify whether to resume from last time
+		''' 
+		Run all settings in this Experiment, saving progress to .progress file 
+		and logging to .log file. Optionally, specify whether to resume from last time
 		'''
 		# TODO: Start a tmux session and log to different panes. 
 		# Start pdb on a new pane if an exception is raised. 
@@ -408,12 +416,13 @@ class Experiment(Surface):
 				results.to_parquet(self.result_file.replace('.parquet', '_formatted.parquet'))
 
 	def __post_init__(self): 
-		''' 1. allows you to declare fields inline when instantiating an Experiment(), 
-			   wrapping the mutables in a Field (field(default_factory=lambda: mutable))
-			2. sets sub-Surfaces as nested; to indicate they should be searched as part
-			   of the parent (TODO: can't remember whether this was actually necessary)
-			3. tries to format f-strings that appear in the setting's attributes, if 
-			   they are formattable. Convenient for defining setting-dependent strings.
+		''' 
+		1. allows you to declare fields inline when instantiating an Experiment(), 
+		   wrapping the mutables in a Field (field(default_factory=lambda: mutable))
+		2. sets sub-Surfaces as nested; to indicate they should be searched as part
+		   of the parent (TODO: can't remember whether this was actually necessary)
+		3. tries to format f-strings that appear in the setting's attributes, if 
+		   they are formattable. Convenient for defining setting-dependent strings.
 		'''
 
 		# set name of the main experiment object to the class the user defined

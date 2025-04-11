@@ -1,18 +1,17 @@
 from __future__ import annotations
 from itertools import product
 from functools import reduce
-from dataclasses import dataclass, field as dataclasses_field, Field
 from typing import Dict, List, Any, Iterator
 from filelock import FileLock
 from string import Formatter
 
 import os, sys, shutil, pickle, traceback, code, copy
-import subprocess, datetime, warnings
-import multiprocess, pandas as pd
+import subprocess, datetime, warnings, dataclasses as dc
+import multiprocess, polars as pl
 
 from .shared import PROGRESS_DIR
 
-@dataclass 
+@dc.dataclass 
 class Dimension: 
 	''' A dimension consists of a unidirectional series of points 
 		i.e. a list, for now – it can also be a range.
@@ -55,14 +54,14 @@ T = TypeVar('T')
 
 def search(*points: T) -> T: 
 	''' to be used within a Surface definition '''
-	return dataclasses_field(default_factory=lambda: Dimension(points))
+	return dc.field(default_factory=lambda: Dimension(points))
 
 def field(point: T) -> T: 
 	''' alternative to dataclasses' demonic ass field definition ''' 
-	return dataclasses_field(default_factory = lambda: point)
+	return dc.field(default_factory = lambda: point)
 
 
-@dataclass 
+@dc.dataclass 
 class Surface: 
 	''' A surface consists of at least two dimensions 
 		i.e. multiple lists, and optional static points 
@@ -81,7 +80,7 @@ class Surface:
 # in the future we can do some auto-scheduling with enough profiling. 
 # we can totally do this and optimise for slurm quote & other servers. 
 
-@dataclass 
+@dc.dataclass 
 class Experiment(Surface): 
 	''' Grid-search a dataclass. Has the following attributes:
 
@@ -99,11 +98,11 @@ class Experiment(Surface):
 		```
 	'''
 	__name		 :str = 'Experiment'
-	__nested	:bool = dataclasses_field(default=False, kw_only=True) # TODO: do we still need this field?
+	__nested	:bool = dc.field(default=False, kw_only=True) # TODO: do we still need this field?
 
-	__start_time: str = dataclasses_field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
-	__debug		:bool = dataclasses_field(init=False, default=False, kw_only=True)
-	__n_proc	 :int = dataclasses_field(init=False, default=1, kw_only=True)
+	__start_time: str = dc.field(init=False, default=datetime.datetime.now().strftime("%-Y%m%d-%H%M%S"))
+	__debug		:bool = dc.field(init=False, default=False, kw_only=True)
+	__n_proc	 :int = dc.field(init=False, default=1, kw_only=True)
 
 	@property 
 	def name(self) -> str:
@@ -215,42 +214,34 @@ class Experiment(Surface):
 				f'to {self.log_file} '
 			)
 
-	def __store_result(self, setting_name: str, result: dict | None):
+	def __store_result(self, setting_name: str, result: dict | pl.DataFrame):
 		''' 
 		Store results if they were returned, thread safe. 
 		'''
+		if isinstance(result, dict): 
+			assert all(not isinstance(v, dict) for v in result.values()), \
+				'unnest the returned dictionary yourself into a pl.DataFrame'
+			result = pl.from_dicts([result])
 
-		if isinstance(result, dict):
+		# add the setting name in case the user forgot
+		if not any(
+			col.dtype == pl.String and setting_name in col 
+			for col in result.iter_columns()
+		):
+			result = result.with_columns(setting = pl.lit(setting_name))
 
-			def flatten(dictionary, keys=tuple()):
-				''' if the dictionary is nested, for a proper multiindex we need to convert
-					the nesting to a flat dictionary, where the keys are tuples
-					with setting_name as the first entry in the tuple. 
-				'''
-				for k, v in dictionary.items():
-					if isinstance(v, dict): yield from flatten(v, keys + (k,))
-					else: yield (keys if len(keys) > 1 else keys[0], dictionary)
-			
-			# if the user has defined a tuple as the keys, then assume they have flattened it
-			result = result if isinstance(list(result.keys())[0], tuple) else dict(flatten({setting_name: result})) 
+		with FileLock(self.result_file + '.lock'): 
+			try: 
+				results = pl.concat([
+					pl.read_parquet(self.result_file), 
+					result, 
+				], how = 'diagonal_relaxed')
+			except: 
+				results = result
+			results.write_parquet(self.result_file)
 
-			result_lock = FileLock(self.result_file + '.lock')
-			with result_lock:
-				try: results = pd.read_parquet(self.result_file).T
-				except: results : pd.DataFrame = pd.DataFrame({})
-
-				results = pd.concat([
-					results,
-					pd.DataFrame(result)
-				], axis='columns')
-				# needs to be transpose to concatenate above, 
-				# while still allowing for parquetisation of objects
-				results.T.to_parquet(self.result_file)
-
-				self.__log(results.T[::-1]) # reverse to show most recent one first
-			return results
-		else: 
-			self.__log(f'\033[1;31mWARNING: no results returned!\033[0m')
+		self.__log(results)
+		return results
 
 	def __store_progress(self, setting_name):
 		''' 
@@ -338,17 +329,9 @@ class Experiment(Surface):
 			result = setting.resume() if hasattr(setting, 'resume') else setting.run()
 			self.__log(f'\nDone with {index}: \033[1m{setting.name}\033[0m\n')
 
-			results = self.__store_result(setting.name, result)
+			if isinstance(result, dict) or isinstance(result, pl.DataFrame):
+				self.__store_result(setting.name, result)
 			self.__store_progress(setting.name)
-
-			# this makes more sense to add if/when we have smarter search 
-			# than grid search
-			# if results is not None and hasattr(self, 'format_results'): 
-			# 	try: self.format_results(results)
-			# 	except: warnings.warn(UserWarning(
-			# 		f'Could not pre-format results for {setting.name}'
-			# 	))
-
 			return
 
 		except Exception as e: # let the user know we're skipping this setting
@@ -406,14 +389,14 @@ class Experiment(Surface):
 			# `and resume` to not format_results twice after the last experiment
 			result_lock = FileLock(self.result_file + '.lock')
 			with result_lock:
-				try: results = pd.read_parquet(self.result_file).T
+				try: results = pl.read_parquet(self.result_file)
 				except: 
 					self.__log(f'\033[1;31mWARNING: no results found!\033[0m') 
 					return
 
-			results :pd.DataFrame = self.format_results(results)
+			results: pl.DataFrame = self.format_results(results)
 			if results is not None: 
-				results.to_parquet(self.result_file.replace('.parquet', '_formatted.parquet'))
+				results.write_parquet(self.result_file.replace('.parquet', '_formatted.parquet'))
 
 	def __post_init__(self): 
 		''' 
@@ -429,7 +412,7 @@ class Experiment(Surface):
 		self.__name = self.__class__.__name__
 
 		uninitialised_fields = {name: _field for \
-			name, _field in self.__dict__.items() if isinstance(_field, Field)
+			name, _field in self.__dict__.items() if isinstance(_field, dc.Field)
 		}
 		for name, _field in uninitialised_fields.items():
 			setattr(self, name, _field.default_factory())

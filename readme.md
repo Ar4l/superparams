@@ -151,10 +151,14 @@ Further reference ([python docs](https://docs.python.org/3/library/dataclasses.h
 
 #### TODO
 
-- [ ] allow returning a dataframe in `run(self)`.
-- [ ] try calling `format_results` at the end of every experiment, 
+- [ ] allow returning a dataframe in `run(self)`: port to polars, 
+      we currently also only allow one-dimensional data, which is 
+      majorly inconvenient.
+- [x] try calling `format_results` at the end of every experiment, 
       exceptions are only sent as a warning (one if just one or all, 
       multiple if just some), until the last experiment.
+  - [ ] and call it on the last setting instead of general problem instance for 
+        the final format_results call
 - [ ] caching experiments based on the hyperparameters, 
 - [ ] allowing operations based on the hyperparameters in `format_results` e.g. `max(dimension)`.
 - [ ] nice overview of available experiments + improve progress reporting to work better across multiple processes.

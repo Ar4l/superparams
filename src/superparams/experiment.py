@@ -59,7 +59,7 @@ def search(*points: T) -> T:
 
 def field(point: T) -> T: 
 	''' alternative to dataclasses' demonic ass field definition ''' 
-	return dataclasses_field(default_factory = lambda: Dimension([point]))
+	return dataclasses_field(default_factory = lambda: point)
 
 
 @dataclass 
@@ -198,14 +198,20 @@ class Experiment(Surface):
 		''' Set up logging. I'm using tee to ensure we capture system stuff too
 			taken from https://stackoverflow.com/questions/616645/how-to-duplicate-sys-stdout-to-a-log-file
 		'''
-		tee = subprocess.Popen(['tee', '-a', self.log_file], stdin=subprocess.PIPE)
-		# Cause tee's stdin to get a copy of our stdin/stdout (as well as that
-		# of any child processes we spawn)
-		os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
-		os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
+		try: 
+			tee = subprocess.Popen(['tee', '-a', self.log_file], stdin=subprocess.PIPE)
+			# Cause tee's stdin to get a copy of our stdin/stdout (as well as that
+			# of any child processes we spawn)
+			os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
+			os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
 
-		self.__log(f'\033[90mPROGRESS FILE: \t{self.progress_file}\033[0m', flush=True)
-		self.__log(f'\033[90mLOG FILE	  : \t{self.log_file}\033[0m', flush=True)
+			self.__log(f'\033[90mPROGRESS FILE: \t{self.progress_file}\033[0m', flush=True)
+			self.__log(f'\033[90mLOG FILE	  : \t{self.log_file}\033[0m', flush=True)
+		except: 
+			warnings.warn(
+				'user does not have `tee` installed, will not log ',
+				f'to {self.log_file} '
+			)
 
 	def __store_result(self, setting_name: str, result: dict | None):
 		''' Store results if they were returned, thread safe. '''
@@ -327,11 +333,13 @@ class Experiment(Surface):
 			results = self.__store_result(setting.name, result)
 			self.__store_progress(setting.name)
 
-			if results is not None and hasattr(self, 'format_results'): 
-				try: self.format_results(results)
-				except: warnings.warn(UserWarning(
-					f'Could not pre-format results for {setting.name}'
-				))
+			# this makes more sense to add if/when we have smarter search 
+			# than grid search
+			# if results is not None and hasattr(self, 'format_results'): 
+			# 	try: self.format_results(results)
+			# 	except: warnings.warn(UserWarning(
+			# 		f'Could not pre-format results for {setting.name}'
+			# 	))
 
 			return
 
@@ -372,8 +380,10 @@ class Experiment(Surface):
 				f'\n{self}'
 			), flush=True)
 
+		# todo: expose to user
 		self.__debug = debug 
 		self.__n_proc = n_proc
+		self.__rerun = rerun
 
 		if n_proc == 1:
 			# run all settings in this experiment (i.e. perform grid search)
@@ -384,7 +394,8 @@ class Experiment(Surface):
 				iterator = map(lambda tup: (*tup, finished_runs, debug, rerun), enumerate(self))
 				pool.starmap(self.__run_setting, iterator, chunksize=1)
 
-		if hasattr(self, 'format_results'): # custom results display defined by user
+		if hasattr(self, 'format_results') and resume: # custom results display defined by user
+			# `and resume` to not format_results twice after the last experiment
 			result_lock = FileLock(self.result_file + '.lock')
 			with result_lock:
 				try: results = pd.read_parquet(self.result_file).T

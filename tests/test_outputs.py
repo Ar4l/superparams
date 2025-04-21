@@ -10,6 +10,8 @@ just run this file as a module
 import dataclasses as dc
 import superparams as sp, polars as pl, pytest 
 
+formatted_results: bool = False
+
 @dc.dataclass 
 class Params(sp.Experiment):
 	a :int = sp.search(1,2)
@@ -20,8 +22,11 @@ class Params(sp.Experiment):
 	def format_results(self, results: pl.DataFrame): 
 		print(results)
 
+		global formatted_results
+		formatted_results = True
 
-def test_dataframe(): 
+
+def return_dataframe(): 
 
 	params = Params()
 	params.run_all()
@@ -44,7 +49,10 @@ def test_dataframe():
 	assert all(col.all() for col in (results == expected)), \
 		f'{results} != {expected}: \n{results == expected}'
 
-def test_dict():
+	assert formatted_results, \
+		'format_results() was not called in run_all()'
+
+def return_dict():
 
 	@dc.dataclass
 	class DictParams(Params): 
@@ -83,5 +91,5 @@ def test_dict():
 		f'{results} != {expected}: \n{results == expected}'
 
 if __name__ == '__main__':
-	test_dataframe()
-	test_dict()
+	return_dataframe()
+	return_dict()

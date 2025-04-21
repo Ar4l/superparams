@@ -52,11 +52,11 @@ class Dimension:
 from typing import TypeVar
 T = TypeVar('T')
 
-def search(*points: T) -> T: 
+def search(*points: T) -> dc.Field[T]: 
 	''' to be used within a Surface definition '''
 	return dc.field(default_factory=lambda: Dimension(points))
 
-def field(point: T) -> T: 
+def field(point: T) -> dc.Field[T]: 
 	''' alternative to dataclasses' demonic ass field definition ''' 
 	return dc.field(default_factory = lambda: point)
 
@@ -385,8 +385,7 @@ class Experiment(Surface):
 				iterator = map(lambda tup: (*tup, finished_runs, debug, rerun), enumerate(self))
 				pool.starmap(self.__run_setting, iterator, chunksize=1)
 
-		if hasattr(self, 'format_results') and resume: # custom results display defined by user
-			# `and resume` to not format_results twice after the last experiment
+		if hasattr(self, 'format_results'): # custom results display defined by user
 			result_lock = FileLock(self.result_file + '.lock')
 			with result_lock:
 				try: results = pl.read_parquet(self.result_file)

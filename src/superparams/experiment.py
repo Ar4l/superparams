@@ -13,8 +13,9 @@ from .shared import PROGRESS_DIR
 
 @dc.dataclass 
 class Dimension: 
-	''' A dimension consists of a unidirectional series of points 
-		i.e. a list, for now – it can also be a range.
+	''' 
+	A dimension consists of a unidirectional series of points 
+	i.e. a list, for now – it can also be a range.
 	'''
 	points : List[Any | Dimension]
 
@@ -23,7 +24,7 @@ class Dimension:
 
 		for point in self.points:
 			if isinstance(point, Dimension): yield from iter(point)
-			elif isinstance(point, Surface): yield from iter(point)
+			elif isinstance(point, _Surface): yield from iter(point)
 			else: yield point
 
 	def __len__(self) -> int:
@@ -31,7 +32,7 @@ class Dimension:
 		n_points = 0 
 		for point in self.points: 
 			if isinstance(point, Dimension): n_points += len(point)
-			elif isinstance(point, Surface): n_points += len(point)
+			elif isinstance(point, _Surface): n_points += len(point)
 			else: n_points += 1
 		return n_points 
 
@@ -39,8 +40,8 @@ class Dimension:
 		''' self.__logs points as list, or recurse into subdims '''
 		nonsurface = ', '.join(
 			f'*{point}' if isinstance(point, Dimension) else str(point)
-			for point in filter(lambda x: not isinstance(x, Surface), self.points)) 
-		surface = ','.join(str(point) for point in filter(lambda x: isinstance(x, Surface), self.points))
+			for point in filter(lambda x: not isinstance(x, _Surface), self.points)) 
+		surface = ','.join(str(point) for point in filter(lambda x: isinstance(x, _Surface), self.points))
 		
 		if len(nonsurface) > 0 and len(surface) > 0:
 			return nonsurface + ', ' + surface 
@@ -57,15 +58,20 @@ def search(*points: T) -> dc.Field[T]:
 	return dc.field(default_factory=lambda: Dimension(points))
 
 def field(point: T) -> dc.Field[T]: 
-	''' alternative to dataclasses' demonic ass field definition ''' 
+	''' 
+	A field that is for all purposes, static and immutable.
+	Shorthand for dataclasses.field(default_factory=lambda: point)
+	''' 
 	return dc.field(default_factory = lambda: point)
 
 
 @dc.dataclass 
-class Surface: 
-	''' A surface consists of at least two dimensions 
-		i.e. multiple lists, and optional static points 
+class _Surface: 
+	''' 
+	A surface consists of at least two dimensions 
+	i.e. multiple lists, and optional static points 
 	'''
+	pass
 
 # TODO: apparently a process pool cannot spawn more process pools; 
 # though huggingface is definitely using all 128 cores w/o asking me sometimes...
@@ -81,21 +87,25 @@ class Surface:
 # we can totally do this and optimise for slurm quote & other servers. 
 
 @dc.dataclass 
-class Experiment(Surface): 
-	''' Grid-search a dataclass. Has the following attributes:
+class Experiment(_Surface): 
+	''' 
+	Grid-search a dataclass. Has the following attributes:
 
-		- `exp.name = Class-k`		Where k is a setting's index
-		- `exp.debug = False`		Whether --debug was passed 
-		- `exp.n_proc = 1`			Number passed to --n_proc
-		- `exp.proc_id = 0 `		Current process index [0, n_proc)
+	- `exp.name = Class-k`		Where k is a setting's index
+	- `exp.debug = False`		Whether --debug was passed 
+	- `exp.n_proc = 1`			Number passed to --n_proc
+	- `exp.proc_id = 0 `		Current process index [0, n_proc)
 
-		## Usage 
-		```python
-		@dataclass
-		class Params(Experiment):
-			a :int = search(1,2,3)
-			b :str = 'b'
-		```
+	## Usage 
+	```python
+	@dataclass
+	class Params(Experiment):
+		a :int = search(1,2,3)
+		b :str = 'b'
+	```
+
+	Calling .run_all() on an instance, or invoking via CLI, 
+	will run all settings of `a`.
 	'''
 	__name		 :str = 'Experiment'
 	__nested	:bool = dc.field(default=False, kw_only=True) # TODO: do we still need this field?
@@ -118,36 +128,45 @@ class Experiment(Surface):
 
 	@property 
 	def proc_id(self) -> int:
-		''' Return the processor id in case of multithreading (between 1 - n_proc)
-			returns 0 if no multiprocessing is enabled (main thread execution)
+		''' 
+		Return the processor id in case of multiprocessing (between 1 - n_proc)
+		returns 0 if disabled (main thread execution)
 		'''
 		return 0 if len(multiprocess.current_process()._identity) == 0 \
 			else multiprocess.current_process()._identity[0]
-	
+
 	@property 
 	def n_proc(self) -> int:
-		''' Return the variable passed to n_proc flag, 1 by default (no multiprocessing) '''
+		''' 
+		Return the variable passed to n_proc flag, 1 by default (no multiprocessing) 
+		'''
 		return self.__n_proc 
 
 	@property 
 	def debug(self) -> bool: 
-		''' Return whether the --debug flag was passed, False by default '''
+		''' 
+		Return whether the --debug flag was passed, False by default 
+		'''
 		return self.__debug
 
 	def as_dict(self) -> dict[str, Any]:
-		''' return a dictionary representation of this Experiment object
-			TODO: do we also convert sub-Experiments to dictionaries? '''
+		''' 
+		Return a dictionary representation of this Experiment object
+		'''
+		# TODO: do we also convert sub-Experiments to dictionaries? 
 		return {k:v for k,v in self.__dict__.items() if not k.startswith('_Experiment__')}
 
 	def run(self) -> dict:
-		''' Run this experiment using the values defined in its class.
-			Return a dict of results for it to be stored with the experiment name 
+		''' 
+		Run this experiment using the values defined in its class.
+		Return a dict of results for it to be stored with the experiment name 
 		'''
 		raise NotImplementedError('You should override this method!')
 
 	def __prompt_resume(self, resume, no_resume, clean):
-		''' If existing progress files are found and the --no-resume flag is not set,
-			prompt the user whether they want to resume from last time
+		''' 
+		If existing progress files are found and the --no-resume flag is not set,
+		prompt the user whether they want to resume from last time
 		'''
 		progress_files_dir = os.path.dirname(self.progress_file)
 		os.makedirs(progress_files_dir, exist_ok=True)
@@ -254,7 +273,9 @@ class Experiment(Surface):
 				self.__log(setting_name, file=progress_file)
 
 	def __get_progress(self) -> list:
-		''' Get progress so far, thread safe. '''
+		''' 
+		Get progress so far, thread safe. 
+		'''
 		progress_lock = FileLock(self.progress_file + '.lock')
 		with progress_lock: 
 			with open(self.progress_file, 'r') as progress_file: 
@@ -262,6 +283,11 @@ class Experiment(Surface):
 		return progress
 
 	def __store_exception(self, setting_name, exception, debug):
+		'''
+		Store exception in self.exc_file
+		If --debug flag is passed, attempts to open a debugger shell at the 
+		point of error. 
+		'''
 
 		# oh boy this is an interpreted language, let's use it.
 		if debug: 
@@ -313,8 +339,9 @@ class Experiment(Surface):
 	def __run_setting(self, index:int, setting:Experiment, finished_runs: list, debug=False, rerun=False):
 		''' 
 		Run setting on one process, with error handling and progress tracking
-		# TODO: logging to multiple files to not clutter the one to bits 
 		'''
+		# TODO: logging to multiple files to not clutter the one to bits 
+
 		setting.__n_proc = self.__n_proc
 		index += 1 # for natural language indexing
 		# self.__log(f'{index:04d}: {multiprocess.current_process()._identity[0]}')
@@ -348,8 +375,9 @@ class Experiment(Surface):
 
 	def run_all(self, resume=False, no_resume=False, n_proc=1, debug=False, clean=False, rerun=False):
 		''' 
-		Run all settings in this Experiment, saving progress to .progress file 
-		and logging to .log file. Optionally, specify whether to resume from last time
+		Run all settings in this Experiment, saving progress to self.progress_file 
+		and logging to self.log_file. 
+		Optionally, specify whether to resume from last time.
 		'''
 		# TODO: Start a tmux session and log to different panes. 
 		# Start pdb on a new pane if an exception is raised. 
@@ -404,8 +432,10 @@ class Experiment(Surface):
 		''' 
 		1. allows you to declare fields inline when instantiating an Experiment(), 
 		   wrapping the mutables in a Field (field(default_factory=lambda: mutable))
+		   TODO: not sure this works as intended.
 		2. sets sub-Surfaces as nested; to indicate they should be searched as part
-		   of the parent (TODO: can't remember whether this was actually necessary)
+		   of the parent 
+		   TODO: can't remember whether this was actually necessary.
 		3. tries to format f-strings that appear in the setting's attributes, if 
 		   they are formattable. Convenient for defining setting-dependent strings.
 		'''
@@ -424,7 +454,7 @@ class Experiment(Surface):
 
 		''' 2. set fields as nested, to not track progress in nested classes '''
 		for k, v in self.__items:
-			if isinstance(v, Surface):
+			if isinstance(v, _Surface):
 				v.__nested = True 
 
 		''' 3. format attribute strings '''
@@ -442,12 +472,17 @@ class Experiment(Surface):
 			except: pass
 
 	def __log(self, message, flush=True, file=None) -> None:
-		''' because I can't be bothered to write if elses everywhere '''
+		''' 
+		because I can't be bothered to write if elses everywhere 
+		'''
 		if os.environ.get('LOCAL_RANK', 0) == 0: 
 			print(message, flush=flush, file=file)
 
 	def __str__(self) -> str: 
-
+		'''
+		Return a string representation of this experiment/setting,
+		with variables highlighted in purple in case of an Experiment.
+		'''
 		string = f'\n\033[1;93m{len(self):3} {self.name}\033[0m'
 
 		max_k_len = max(map(len, self.__dict__.keys()))
@@ -456,7 +491,7 @@ class Experiment(Surface):
 			v_string = '\n	  '.join(str(v).splitlines()) 
 
 			# dimensions in purple to make it clear to the user 
-			if isinstance(v, Dimension) or isinstance(v, Surface):
+			if isinstance(v, Dimension) or isinstance(v, _Surface):
 				string += '\n \033[1;95m{:2} {:{}s}: [\033[0m {} \033[95;1m]\033[0m'.format(
 					len(v), k, max_k_len, v_string
 				)
@@ -468,6 +503,9 @@ class Experiment(Surface):
 		return string + '\n'
 
 	def __len__(self) -> int:
+		'''
+		Return number of settings in this experiment.
+		'''
 		return reduce(
 				lambda a,b: a*b, 
 				map(
@@ -476,8 +514,10 @@ class Experiment(Surface):
 			), 1
 		) 
 
-	def __iter__(self) -> Iterator[Surface]:
-
+	def __iter__(self) -> Iterator[_Surface]:
+		'''
+		Iterate over settings in this experiment.
+		'''
 		keys = self.__dimensions.keys()
 		for i, instance in enumerate(product(*[v for v in self.__dimensions.values()])):
 			point = self.__class__(**self.__static_points, **dict(zip(keys, instance)))
@@ -488,29 +528,37 @@ class Experiment(Surface):
 
 	@property 
 	def __items(self):
-		''' returns all items in this class, except dunders '''
+		''' 
+		Returns all items in this class, except dunders 
+		'''
 		return {k:v for k,v in self.__dict__.items() if not k.startswith('_Experiment__')}.items()
 
 	@property 
 	def __static_points(self) -> Dict[str, Any] :
-		''' dictionary of { var_one: Any, var_two: Any, ... } '''
-		return {k:v for k,v in self.__items if not isinstance(v, Dimension) and not isinstance(v,Surface)}
+		''' 
+		Dictionary of { var_one: Any, var_two: Any, ... } 
+		'''
+		return {k:v for k,v in self.__items if not isinstance(v, Dimension) and not isinstance(v,_Surface)}
 
 	@property 
 	def __dimensions(self) -> Dict[str, Dimension]:
-		''' dictionary of { var_one: Dimension, var_two: Dimension, ... } '''
-		return {k:v for k,v in self.__items if isinstance(v,Dimension) or isinstance(v,Surface)}
+		''' 
+		Dictionary of { var_one: Dimension, var_two: Dimension, ... } 
+		'''
+		return {k:v for k,v in self.__items if isinstance(v,Dimension) or isinstance(v,_Surface)}
 
 	@property 
 	def clean_class_name(self) -> str:
-		''' clean class name (without experiment index) '''
+		''' 
+		Clean class name (without experiment index) 
+		'''
 		classname = self.__class__.__name__
 		return classname.split('-')[0] if '-' in classname else classname
 
 	@property 
 	def experiment_dir(self) -> str: 
-		f'''
-		Output directory in {PROGRESS_DIR}/filename/Classname/
+		'''
+		Output directory in experiments/progress/filename/Classname/
 		'''
 		return os.path.join(
 			PROGRESS_DIR, 
@@ -520,46 +568,48 @@ class Experiment(Surface):
 
 	@property 
 	def __experiment_file(self) -> str: 
-		''' Used for storing the below files '''
+		''' 
+		Used for storing the below files.
+		'''
 		return os.path.join(self.experiment_dir, f'{self.__start_time}')
 
 	@property
 	def progress_file(self) -> str:
-		f''' 
+		''' 
 		Progress is stored by saving experiment index to
-		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.progress
+		experiments/progress/filename/Classname/YYYYMMDD-HHMMSS.progress
 		'''
 		return self.__experiment_file + '.progress'
 
 	@property 
 	def result_file(self) -> str : 
-		f''' 
+		''' 
 		Results are stored in a dataframe at the path:
-		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.parquet
+		experiments/progress/filename/Classname/YYYYMMDD-HHMMSS.parquet
 		'''
 		return self.__experiment_file + '.parquet'
 
 	@property 
 	def log_file(self) -> str:
-		f''' 
+		''' 
 		Log everything! A copy of terminal output is stored at
-		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.log
+		experiments/progress/filename/Classname/YYYYMMDD-HHMMSS.log
 		'''
 		return self.__experiment_file + '.log'
 
 	@property 
 	def exc_file(self) -> str: 
-		f''' 
+		''' 
 		Experiment indices that had an Exception are stored at 
-		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.exceptions
+		experiments/progress/filename/Classname/YYYYMMDD-HHMMSS.exceptions
 		'''
 		return self.__experiment_file + '.exceptions'
 
 	@property 
 	def exc_log_file(self) -> str: 
-		f''' 
+		''' 
 		Exception stack traces are stored at 
-		{PROGRESS_DIR}/filename/Classname/YYYYMMDD-HHMMSS.exceptions.log
+		experiments/progress/filename/Classname/YYYYMMDD-HHMMSS.exceptions.log
 		'''
 		return self.__experiment_file + '.exceptions.log'
 

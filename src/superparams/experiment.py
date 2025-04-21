@@ -343,6 +343,9 @@ class Experiment(Surface):
 			self.__log(f' \033[1;31m!!!\033[0m\t\033[1m{name}\033[31m failed \033[0m\n{traceback.format_exc()}')
 			self.__store_exception(setting.name, e, debug) # can raise Exception: too many failures
 
+		# cleanup memory
+		del setting
+
 	def run_all(self, resume=False, no_resume=False, n_proc=1, debug=False, clean=False, rerun=False):
 		''' 
 		Run all settings in this Experiment, saving progress to .progress file 

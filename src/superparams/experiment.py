@@ -471,6 +471,9 @@ class Experiment(_Surface):
 				setattr(self, name, string.format(**kwargs))
 			except: pass
 
+		# create experiment dir on init 
+		os.makedirs(self.experiment_dir, exist_ok=True)
+
 	def __log(self, message, flush=True, file=None) -> None:
 		''' 
 		because I can't be bothered to write if elses everywhere 

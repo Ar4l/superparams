@@ -23,6 +23,12 @@
 - get rid of this annoying `@dataclass` annotation, replace with `@experiment`; force immutability for provided mutable class attributes, rather than `dataclasses` default approach.
 - check compatitibility with `python=3.10, python=3.11`. 
 
+
 #### Publishing
-- Update version in `pyproject.toml`: big bump means package incompatibility :)
+
+0. **Test.** Ensure tests pass with `uv run --all-extras pytest`
+1. **Update.** Bump version in `pyproject.toml`: big bump means package *in*compatibility for users :)
+2. **Publish.** Clear existing builds in `dist`, run `uv build`, followed by `uv publish -vt <token>`
+3. **Save.** Git commit `pyproject.toml` and `uv.lock`, tag with `git tag -a vX.X.X -m 'version X.X.X: description`. 
+4. **Push.** `git push` and `git push origin vX.X.X` ~~will trigger an automatic publish hook on GitHub. #todo: set up git hook to automatically publish, and then we can get rid of step 2~~.
 
